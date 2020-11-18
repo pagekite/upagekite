@@ -1,0 +1,9 @@
+{
+  "version": 0,
+  "base_url_path": "",
+  "mirror": {
+    "upagekite/__init__.py": true,
+    "upagekite/proto.py": true,
+    "scripts/bootstrap_2.py": "stage_2.py"
+  }
+}
