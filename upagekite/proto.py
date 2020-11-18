@@ -1,3 +1,9 @@
+# A low-level PageKite protocol implementation.
+#
+# Note that some of this code is not currently thread-safe, in particular
+# the uPageKiteDefaults.connect() method should not run be run concurrently
+# with the same set of Kite objects.
+#
 import sys
 import struct
 import time
@@ -27,22 +33,34 @@ except ImportError:
     return sha1(bytes(data, 'latin-1')).hexdigest()
 
 try:
+    import ussl as ssl
+except ImportError:
+    try:
+        import ssl
+    except ImportError:
+        ssl = False
+
+try:
   import usocket as socket
   IOError = OSError
-  def sock_connect_stream(addr):
+  def sock_connect_stream(addr, ssl_wrap=False, timeouts=(20, 300)):
     s = socket.socket()
-    s.settimeout(20)
+    s.settimeout(timeouts[0])
     s.connect(addr)
-    s.settimeout(300)
+    s.settimeout(timeouts[1])
+    if ssl_wrap:
+        return (s, ssl.wrap_socket(s))
     return s
 except ImportError:
   import socket
-  def sock_connect_stream(addr):
+  def sock_connect_stream(addr, ssl_wrap=False, timeouts=(20, 300)):
     s = socket.socket()
-    s.settimeout(20)
+    s.settimeout(timeouts[0])
     s.connect(addr)
-    s.settimeout(300)
-    return s.makefile("rwb", 0)
+    s.settimeout(timeouts[1])
+    if ssl_wrap:
+        s = ssl.wrap_socket(s)
+    return (s, s.makefile("rwb", 0))
 
 
 class RejectedError(ValueError):
@@ -86,16 +104,15 @@ class uPageKiteDefaults:
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   TOKEN_LENGTH = 36
+  WITH_SSL = (ssl is not False)
 
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
+  info = False   # Set to log in subclass to enable noise
+  error = False  # Set to log in subclass to enable noise
 
   @classmethod
   def log(cls, message):
-    print('[%x] %s' % (int(time.time()), message))
-
-  @classmethod
-  def error(cls, message):
     print('[%x] %s' % (int(time.time()), message))
 
   @classmethod
@@ -122,9 +139,11 @@ class uPageKiteDefaults:
   @classmethod
   def get_relays_addrinfo(cls):
     try:
-      return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT)
+      if cls.FE_NAME:
+        return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT)
     except IOError:
-      return []
+      pass
+    return []
 
   @classmethod
   def ping_relay(cls, relay_addr, bias=1.0):
@@ -142,7 +161,8 @@ class uPageKiteDefaults:
         cls.debug('Ping %s ok: %dms (~%dms)' % (relay_addr, elapsed, biased))
       return biased
     except (IOError, OSError) as e:
-      cls.log('Ping %s failed: %s' % (relay_addr, e))
+      if cls.info:
+        cls.info('Ping %s failed: %s' % (relay_addr, e))
       return 99999
 
   @classmethod
@@ -234,7 +254,7 @@ class uPageKiteDefaults:
         kitename = parts[2]
         for kite in kites:
           if kite.name == kitename and kite.proto == proto:
-            kite.challenge = parts[4]
+            kite.challenge = parts[4]  # FIXME: Not thread safe!
             needsign.append(kite)
       elif line.startswith('X-PageKite-OK:'):
         ok.append(':'.join(line.split(':')[:3]))
@@ -256,7 +276,7 @@ class uPageKiteDefaults:
       kite.challenge = ''
 
     # Connect, get fresh challenges
-    conn = sock_connect_stream(relay_addr)
+    cfd, conn = sock_connect_stream(relay_addr, ssl_wrap=cls.WITH_SSL)
     cls.send_raw(conn, (
         'CONNECT PageKite:1 HTTP/1.0\r\n'
         'X-PageKite-Features: AddKites\r\n'
@@ -290,5 +310,6 @@ class uPageKiteDefaults:
       conn.close()
       raise RejectedError('No requests accepted, is this really a relay?')
 
-    cls.log('Connected to %s' % (relay_addr,))
-    return conn
+    if cls.info:
+      cls.info('Connected to %s' % (relay_addr,))
+    return cfd, conn

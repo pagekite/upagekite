@@ -4,10 +4,14 @@ from . import Kite, uPageKite, uPageKiteDefaults
 
 
 class MyProto(uPageKiteDefaults):
-  # FE_NAME = 'invalid.b5p.us'
+  # Disable connecting to new front-ends, static setup
+  #FE_NAME = None
+
+  # Enable all the logging
   trace = uPageKiteDefaults.log
   debug = uPageKiteDefaults.log
-  pass
+  info  = uPageKiteDefaults.log
+  error = uPageKiteDefaults.log
 
 
 def handle_http_request(kite, conn, frame):

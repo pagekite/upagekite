@@ -12,23 +12,23 @@ from .proto import Kite, Frame, EofTunnelError, uPageKiteDefaults
 class uPageKiteConn:
   def __init__(self, relay_addr, pk):
     self.pk = pk
-    self.fd = pk.proto.connect(relay_addr, pk.kites, pk.secret)
+    self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
     self.pk.last_data_ts = time.time()
 
   def reply(self, frame, data, eof=True):
-    self.pk.proto.send_data(self.fd, frame, data)
+    self.pk.proto.send_data(self.conn, frame, data)
     if eof:
-      self.pk.proto.send_eof(self.fd, frame)
+      self.pk.proto.send_eof(self.conn, frame)
 
   def process_chunk(self):
     try:
-      frame = self.pk.proto.read_chunk(self.fd)
+      frame = self.pk.proto.read_chunk(self.conn)
       self.pk.last_data_ts = time.time()
       if frame:
         frame = Frame(frame)
 
         if frame.ping:
-          self.pk.proto.send_pong(self.fd, frame.ping)
+          self.pk.proto.send_pong(self.conn, frame.ping)
 
         elif frame.sid and frame.host and frame.proto:
           for kite in self.pk.kites:
@@ -59,7 +59,8 @@ class uPageKiteConnPool:
     for (obj, event) in self.poll.poll(timeout):
       if event != select.POLLIN:
         return False
-      if self.conns[obj.fileno()].process_chunk():
+      conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
+      if conn.process_chunk():
         count += 1
       else:
         return False
@@ -84,8 +85,12 @@ class uPageKite:
       if a[-1] not in relays and len(relays) < 10:
         relays.append(a[-1])
     if not relays:
-      self.proto.log('No relays found in DNS, is our Internet down?')
+      if self.proto.info:
+        self.proto.info('No relays found in DNS, is our Internet down?')
       return []
+
+    if len(relays) == 1:
+      return relays
 
     pings = [0] * len(relays)
     for i, relay_addr in enumerate(relays):
@@ -107,9 +112,12 @@ class uPageKite:
         try:
           conns.append(uPageKiteConn(relay, self))
         except Exception as e:
-          self.proto.error('Failed to connect %s: %s' % (relay, e))
+          if self.proto.error:
+            self.proto.error('Failed to connect %s: %s' % (relay, e))
 
       if conns:
+        # FIXME: Update dynamic DNS with the details for our preferred
+        #        relay (which should be relays[0]).
         pool = uPageKiteConnPool(conns, self)
         while True:
           count = pool.process_chunks()
@@ -136,6 +144,7 @@ class uPageKite:
         fallback = 1
 
       if fallback > 1:
-        self.proto.log("Sleeping %d seconds..." % fallback)
+        if self.proto.info:
+          self.proto.info("Sleeping %d seconds..." % fallback)
         time.sleep(fallback)
       fallback = min(fallback * 2, 64)
