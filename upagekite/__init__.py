@@ -1,8 +1,12 @@
-# This is a minimal Python3/MicroPython PageKite connector
+# Copyright (C) 2020, The Beanstalks Project ehf. and Bjarni R. Einarsson.
 #
-# See __main__.py for a usage examplee.
-# See ../COPYING for copyright and license.
-
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# See the files README.md and COPYING.txt for more details.
+#
 import time
 import select
 

@@ -1,3 +1,14 @@
+# Copyright (C) 2020, The Beanstalks Project ehf. and Bjarni R. Einarsson.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+#
+# See the files README.md and COPYING.txt for more details.
+#
+### # #
+#
 # A low-level PageKite protocol implementation.
 #
 # Note that some of this code is not currently thread-safe, in particular
