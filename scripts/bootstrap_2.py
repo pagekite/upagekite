@@ -41,9 +41,16 @@ def handle_http_request(kite, conn, frame):
 
 
 if settings.get('kite_name') and settings.get('kite_secret'):
+  # These are things we want visible within the individual page scripts
+  # run for dynamic HTTP requests. Setting this allows code to consult
+  # global settings, which could become a security leak.
+  env = {'app': {'proto': MyProto, 'settings': settings}}
+
   httpd = upagekite.httpd.HTTPD(
     settings['kite_name'],
-    '/bootstrap/webroot')
+    '/bootstrap/webroot',
+    env)
+
   kite = upagekite.Kite(
     settings['kite_name'],
     settings['kite_secret'],
@@ -55,6 +62,7 @@ if settings.get('kite_name') and settings.get('kite_secret'):
   time.sleep(2)
 
   upk = upagekite.uPageKite([kite], proto=MyProto)
+  env['app']['upagekite'] = upk  # Expose to page logic
   upk.run()
 
 else:

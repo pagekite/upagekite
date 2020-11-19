@@ -223,6 +223,9 @@ class uPageKiteDefaults:
         hdr += byte
       chunk_len = int(str(hdr, 'latin-1').strip(), 16)
       payload = conn.read(chunk_len)
+      # FIXME: We might need a loop here, in case of short reads.
+      #        And for self preservation, a possibly discard mode if the
+      #        frame is too big for us to handle.
       if cls.trace:
         cls.trace('<< %s%s' % (hdr, payload))
       return payload

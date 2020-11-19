@@ -33,6 +33,9 @@ Cache-Control: max-age=300
   <p>See also: <a href="/hello.html">hello</a><p>
   <h3>Your request:</h3>
   <pre>%s</pre>
+  <h3>Python state:</h3>
+  <pre>Locals: %s</pre>
+  <pre>WiFi SSID: %s</pre>
 </body></html>
 """) % (
      open('/bootstrap/webroot/default.css').read(),  # Inline the CSS
@@ -41,4 +44,6 @@ Cache-Control: max-age=300
      frame.remote_ip,
      mhz,
      flash_size,
-     str(frame.payload, 'latin-1').replace('<', '&lt;')))
+     str(frame.payload, 'latin-1').replace('<', '&lt;'),
+     (', '.join(dir())).replace('<', '&lt;'),
+     app['settings']['ssid']))

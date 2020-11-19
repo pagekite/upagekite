@@ -27,10 +27,12 @@ class HTTPD:
     'txt': 'text/plain',
     '_': 'application/octet-stream'}
 
-  def __init__(self, name, webroot):
+  def __init__(self, name, webroot, env):
     self.name = name
     self.webroot = webroot
     self.static_max_age = 3600
+    self.base_env = env
+    self.last_env = {}
 
   def _err(self, code, msg, conn, frame):
       conn.reply(frame, (
@@ -73,10 +75,12 @@ class HTTPD:
 
     try:
       if filename.endswith('.py'): 
-        exec(fd.read(), {
+        self.last_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json,
           'httpd': self,
-          'kite': kite, 'conn': conn, 'frame': frame})
+          'kite': kite, 'conn': conn, 'frame': frame}
+        self.last_env.update(self.base_env)
+        exec(fd.read(), self.last_env)
       else:
         mimetype = self._mimetype(filename)
         conn.reply(frame, (
