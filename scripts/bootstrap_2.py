@@ -58,6 +58,9 @@ if settings.get('kite_name') and settings.get('kite_secret'):
   upk.run()
 
 else:
-  print("=2= No PageKite credentials, launching webrepl instead.")
-  import webrepl
-  webrepl.start()
+  try:
+    import webrepl
+    print("=2= No PageKite credentials, launching webrepl instead.")
+    webrepl.start()
+  except:
+    print("=2= No PageKite credentials, no webrepl. I give up!")

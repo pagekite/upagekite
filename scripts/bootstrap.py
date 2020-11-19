@@ -8,7 +8,6 @@
 # See the files README.md and COPYING.txt for more details.
 #
 import os
-import ssl
 import sys
 import socket
 import json
@@ -20,26 +19,16 @@ except:
   settings = {}
 
 try:
-  import network
-  import time
-  if settings.get('ssid') and settings.get('key'):
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    wlan.connect(settings['ssid'], settings['key'])
-    for i in range(0, 30):
-      if wlan.isconnected():
-        break
-      time.sleep(1)
-except:
-  pass
-
-
-try:
   from os import ilistdir
 except ImportError:
   def ilistdir(path):
     return ((d, None, None) for d in os.listdir(path))
 
+try:
+  if execfile: pass
+except NameError:
+  def execfile(fn):
+    exec(open(fn, 'r').read(), globals())
 
 try:
   import machine
@@ -58,6 +47,7 @@ def http_get(proto, host, path):
     hostname = host
   client.connect(socket.getaddrinfo(hostname, int(port))[0][-1])
   if proto == 'https':
+    import ssl
     client = ssl.wrap_socket(client)
   elif hasattr(client, 'makefile'):
     client = client.makefile("rwb", 0)
@@ -161,6 +151,21 @@ def download_code(url):
 
 
 def bootstrap():
+  try:
+    import network
+    import time
+    if settings.get('ssid') and settings.get('key'):
+      wlan = network.WLAN(network.STA_IF)
+      if not wlan.isconnected():
+        wlan.active(True)
+        wlan.connect(settings['ssid'], settings['key'])
+        for i in range(0, 30):
+          if wlan.isconnected():
+            break
+          time.sleep(1)
+  except:
+    pass
+
   try:
     download_code(settings['src'])
   except Exception as e:
