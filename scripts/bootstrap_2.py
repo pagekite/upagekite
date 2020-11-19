@@ -24,22 +24,6 @@ class MyProto(upagekite.uPageKiteDefaults):
   debug = upagekite.uPageKiteDefaults.log
 
 
-def handle_http_request(kite, conn, frame):
-  conn.reply(frame, (
-      'HTTP/1.0 200 OK\n'
-      'Content-Type: text/html\n'
-      '\n'
-      '<h1>Hello world!</h1>\n'
-      '<h2>This is %s at %s, you are %s</h2>\n'
-      '<h3>Your request:</h3>\n'
-      '<pre>%s</pre>\n'
-    ) % (
-       kite.name,
-       time.time(),
-       frame.remote_ip,
-       str(frame.payload, 'latin-1').replace('<', '&lt;')))
-
-
 if settings.get('kite_name') and settings.get('kite_secret'):
   # These are things we want visible within the individual page scripts
   # run for dynamic HTTP requests. Setting this allows code to consult

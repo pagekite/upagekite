@@ -38,9 +38,13 @@ class uPageKiteConn:
         elif frame.sid and frame.host and frame.proto:
           for kite in self.pk.kites:
             if kite.name == frame.host and kite.proto == frame.proto:
+              # FIXME: We should allow the handler to return a callback
+              #        for any subsequent data with the same SID, to
+              #        allow for uploads or bidirectional comms.
               kite.handler(kite, self, frame)
               break
 
+        # FIXME: Detect additional data for an established stream
         # FIXME: Detect and report quota values? Other things?
 
       # Zero-length chunks aren't an error condition

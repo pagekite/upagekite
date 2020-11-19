@@ -45,6 +45,8 @@ class HTTPD:
     return self.MIMETYPES.get(fn.rsplit('.', 1)[-1], self.MIMETYPES['_'])
 
   def handle_http_request(self, kite, conn, frame):
+    # FIXME: Should set up a state machine to handle multi-frame or
+    #        long running requests. This is just one-shot for now.
     try:
       request, headers = str(frame.payload, 'latin-1').split('\r\n', 1)
       method, path, http = request.split(' ', 2)

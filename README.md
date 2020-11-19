@@ -38,7 +38,7 @@ hosting a high-volume website. Not does it "solve" security. Be careful!
 
 * Dynamic DNS updates
 * Relay TLS certificate verification
-* Relay selection code (ESP32 DNS lookups are too limited)
+* Adaptive relay selection (ESP32 DNS lookups are too limited)
 * Large HTTP POST requests or file uploads
 * Proxying to an external (web)server
 
