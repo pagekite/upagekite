@@ -4,6 +4,9 @@
   "mirror": {
     "upagekite/__init__.py": true,
     "upagekite/proto.py": true,
+    "upagekite/httpd.py": true,
+    "examples/webroot/index.py": "webroot/index.py",
+    "examples/webroot/hello.html": "webroot/hello.html",
     "scripts/bootstrap_2.py": "stage_2.py"
   }
 }

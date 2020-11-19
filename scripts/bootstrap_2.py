@@ -8,6 +8,7 @@
 # See the files README.md and COPYING.txt for more details.
 #
 import upagekite
+import upagekite.httpd
 import time
 try:
   from boot import settings
@@ -28,15 +29,25 @@ def handle_http_request(kite, conn, frame):
       'HTTP/1.0 200 OK\n'
       'Content-Type: text/html\n'
       '\n'
-      '<h1>Hello world!</h1><h2>This is %s, you are %s</h2>\n'
-    ) % (kite.name, frame.remote_ip))
+      '<h1>Hello world!</h1>\n'
+      '<h2>This is %s at %s, you are %s</h2>\n'
+      '<h3>Your request:</h3>\n'
+      '<pre>%s</pre>\n'
+    ) % (
+       kite.name,
+       time.time(),
+       frame.remote_ip,
+       str(frame.payload, 'latin-1').replace('<', '&lt;')))
 
 
 if settings.get('kite_name') and settings.get('kite_secret'):
+  httpd = upagekite.httpd.HTTPD(
+    settings['kite_name'],
+    '/bootstrap/webroot')
   kite = upagekite.Kite(
     settings['kite_name'],
     settings['kite_secret'],
-    handler=handle_http_request)
+    handler=httpd.handle_http_request)
 
   print("=2= Launching uPageKite Hello World: http://%s" % kite.name)
   print("=2= Press CTRL+C to abort and drop to REPL")

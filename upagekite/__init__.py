@@ -19,8 +19,9 @@ class uPageKiteConn:
     self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
     self.pk.last_data_ts = time.time()
 
-  def reply(self, frame, data, eof=True):
-    self.pk.proto.send_data(self.conn, frame, data)
+  def reply(self, frame, data=None, eof=True):
+    if data:
+      self.pk.proto.send_data(self.conn, frame, data)
     if eof:
       self.pk.proto.send_eof(self.conn, frame)
 
