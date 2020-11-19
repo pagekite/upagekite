@@ -57,8 +57,8 @@ The way it works, is:
 4. The script runs whatever got installed as `bootstrap/stage_2.py`
 
 (Whether this is (or isn't) a sane way to keep devices in the field up
-to date, is left as an exercise for the reader... but it's great for
-development!)
+to date, is left as an exercise for the reader... probably not without
+some form of digital signatures! But it's great for development.)
 
 
 ### Bootstrap web server: python3 web server
