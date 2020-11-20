@@ -109,7 +109,7 @@ folder (the same folder as contains this README.md).
 3. Expose the code folder as https://code-USER.pagekite.me/:
 
 ```
-    pagekite.py . code-USER.pagekite.me
+pagekite.py . code-USER.pagekite.me
 ```
 
 Once you have navigated the sign-up, you can configure your bootstrap
@@ -132,39 +132,39 @@ Follow these steps to configure your ESP32 for uPageKite development
    code snippets below:
 
 ```
-    wifi_ssid = "YOUR-SSID"
-    wifi_key = "YOUR-WIFI-PASSWORD"
+wifi_ssid = "YOUR-SSID"
+wifi_key = "YOUR-WIFI-PASSWORD"
 
-    code_src = "https://yoursite.com/path/to/bootstrap.json"
+code_src = "https://yoursite.com/path/to/bootstrap.json"
 
-    kite_name = "DEVICE-USER.pagekite.me"
-    kite_secret = "SECRET"
+kite_name = "DEVICE-USER.pagekite.me"
+kite_secret = "SECRET"
 ```
 
 3. Enable WiFi:
 
 ```
-    import network
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    wlan.connect(wifi_ssid, wifi_key)
+import network
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect(wifi_ssid, wifi_key)
 ```
 
 4. Create a file name `bootstrap-config.json` with your network
    credentials and the URL you want to download code from:
 
 ```
-    import json
-    with open('bootstrap-config.json', 'w') as fd:
-      fd.write(json.dumps(
-        {"ssid": wifi_ssid, "key": wifi_key, "src": code_src,
-         "kite_name": kite_name, "kite_secret": kite_secret}))
+import json
+with open('bootstrap-config.json', 'w') as fd:
+  fd.write(json.dumps(
+    {"ssid": wifi_ssid, "key": wifi_key, "src": code_src,
+     "kite_name": kite_name, "kite_secret": kite_secret}))
 ```
 
 5. Configure and enable the web REPL:
 
 ```
-    import webrepl_setup
+import webrepl_setup
 ```
 
 6. [Connect to the Web REPL using a browser](http://micropython.org/webrepl/),
@@ -175,15 +175,15 @@ Follow these steps to configure your ESP32 for uPageKite development
 8. Run the bootstrap script!
 
 ```
-    execfile('bootstrap.py')
+execfile('bootstrap.py')
 ```
 
 9. If that successfully connects to your wifi and loads the
    second-stage loader, make it permanent with:
 
 ```
-    os.remove('boot.py')
-    os.rename('bootstrap.py', 'boot.py')
+os.remove('boot.py')
+os.rename('bootstrap.py', 'boot.py')
 ```
 
 From this point on, you can simply edit the code on your computer and
@@ -211,11 +211,11 @@ MicroPython.
 2. Run the bootstrap script:
 
 ```
-    # With Python3
-    python3 scripts/bootstrap.py
+# With Python3
+python3 scripts/bootstrap.py
 
-    # Or MicroPython
-    micropython scripts/bootstrap.py
+# Or MicroPython
+micropython scripts/bootstrap.py
 ```
 
 
