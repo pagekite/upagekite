@@ -31,7 +31,7 @@ hosting a high-volume website. Not does it "solve" security. Be careful!
 
 ### Works:
 
-* Exposing a hello-world website via. pagekite.net
+* Exposing a hello-world website via. [pagekite.net](https://pagekite.net/)
 * Network-based bootstrapping, load & run code from the web
 * Tested platforms and pythons:
    * MicroPython 1.13 on an ESP32-WROOM-32 DevKitC board
@@ -58,7 +58,7 @@ web-based bootstrapping/updating script is included to make life eaiser.
 The way it works, is:
 
 1. [bootstrap.py](scripts/bootstrap.py) runs on the ESP32, on startup
-2. The script downloads [bootstrap.json](bootstrap.json)
+2. The script downloads [bootstrap.json](bootstrap.json) from an HTTP server
 3. The script downloads all files listed in the "mirror" section,
    saving them to a directory named `bootstrap` on the ESP32.
 4. The script runs whatever got installed as `bootstrap/stage_2.py`
