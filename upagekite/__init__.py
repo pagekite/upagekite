@@ -12,7 +12,47 @@ import gc
 import time
 import select
 
-from .proto import Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import socket, Kite, Frame, EofTunnelError, uPageKiteDefaults
+
+
+class LocalHTTPKite(Kite):
+  def __init__(self, listen_on, name, secret, handler):
+    Kite.__init__(self, name, secret, 'http', handler)
+    self.listening_port = listen_on
+    self.fd = socket.socket()
+    self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
+    self.fd.listen(5)
+    self.client = None
+
+  def reply(self, frame, data=None, eof=True):
+    if data:
+      self.client.setblocking(True)
+      self.client.write(data)
+    if eof:
+      self.client.close()
+      self.client = None
+
+  def process_io(self):
+    try:
+      self.client, addr = self.fd.accept()
+      if hasattr(self.client, 'makefile'):
+        self.client = self.client.makefile('rwb')
+
+      req = self.client.read(1)
+      self.client.setblocking(False)
+      req += self.client.read(4095)
+
+      self.handler(self, self, Frame(payload=req, headers={
+        'Host': '0.0.0.0',
+        'Proto': 'http',
+        'Port': self.listening_port,
+        'RIP': '::ffff:%s' % (addr[0],)}))
+
+    except Exception as e:
+      print('Oops: %s' % e)
+      return False
+    return True
 
 
 class uPageKiteConn:
@@ -27,7 +67,7 @@ class uPageKiteConn:
     if eof:
       self.pk.proto.send_eof(self.conn, frame)
 
-  def process_chunk(self):
+  def process_io(self):
     try:
       frame = self.pk.proto.read_chunk(self.conn)
       self.pk.last_data_ts = time.time()
@@ -60,18 +100,22 @@ class uPageKiteConn:
 class uPageKiteConnPool:
   def __init__(self, conns, pk):
     self.pk = pk
+
     self.conns = dict((c.fd.fileno(), c) for c in conns)
+    for so in pk.socks:
+      self.conns[so.fd.fileno()] = so
+
     self.poll = select.poll()
     for fno in self.conns:
       self.poll.register(self.conns[fno].fd, select.POLLIN)
 
-  def process_chunks(self, timeout=2000):
+  def process_io(self, timeout=2000):
     count = 0
     for (obj, event) in self.poll.poll(timeout):
       if event != select.POLLIN:
         return False
       conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
-      if conn.process_chunk():
+      if conn.process_io():
         count += 1
       else:
         return False
@@ -79,11 +123,12 @@ class uPageKiteConnPool:
 
 
 class uPageKite:
-  def __init__(self, kites, proto=uPageKiteDefaults):
+  def __init__(self, kites, socks=[], proto=uPageKiteDefaults):
     self.proto = proto
     self.keep_running = True
     self.last_data_ts = 0
     self.kites = kites
+    self.socks = socks
     self.secret = proto.make_random_secret([(k.name, k.secret) for k in kites])
 
   def choose_relays(self, preferred=[]):
@@ -132,7 +177,7 @@ class uPageKite:
         #        relay (which should be relays[0]).
         pool = uPageKiteConnPool(conns, self)
         while True:
-          count = pool.process_chunks()
+          count = pool.process_io()
           if count is False:
             break
           elif count:

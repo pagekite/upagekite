@@ -71,10 +71,14 @@ class HTTPD:
       method, path, http = request.split(' ', 2)
       if ('..' in path) or method not in ('GET', 'HEAD', 'POST'):
         raise ValueError()
+      del frame.payload
+      del request
       qs = ''
       if '?' in path:
         path, qs = path.split('?', 1)
-      headers = dict(l.split(': ', 1) for l in headers.splitlines() if l)
+      headers = dict(
+        l[:128].split(': ', 1) for l in headers.splitlines()
+        if self.proto.PARSE_HTTP_HEADERS.match(l))
       filename = self.webroot + path
     except Exception as e:
       return self._err(400, 'Invalid request', method, path, conn, frame)
@@ -85,6 +89,7 @@ class HTTPD:
         filename = filename + '/index.py'
       elif 'index.html' in ls:
         filename = filename + '/index.html'
+      del ls
     except:
       pass
     try:
@@ -101,10 +106,14 @@ class HTTPD:
             rdata += body
           conn.reply(frame, rdata)
           self.log_request(frame, method, path, code, len(rdata), headers)
+        headers['_method'] = method
+        headers['_path'] = path
+        headers['_qs'] = qs
         self.last_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json,
           'httpd': self, 'send_http_response': r,
-          'kite': kite, 'conn': conn, 'frame': frame}
+          'kite': kite, 'conn': conn, 'frame': frame,
+          'http_headers': headers}
         self.last_env.update(self.base_env)
         exec(fd.read(), self.last_env)
       else:
@@ -122,6 +131,7 @@ class HTTPD:
             break
         self.log_request(frame, method, path, 200, sent, headers)
     except Exception as e:
+      print('Exception: %s' % e)
       return self._err(500, 'Internal Error', method, path, conn, frame, headers)
     finally:
       fd.close()

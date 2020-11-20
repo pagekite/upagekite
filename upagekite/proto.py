@@ -16,6 +16,7 @@
 # the uPageKiteDefaults.connect() method should not run be run concurrently
 # with the same set of Kite objects.
 #
+import re
 import sys
 import struct
 import time
@@ -89,19 +90,22 @@ class Kite:
     self.secret = secret
     self.challenge = ''
     self.handler = handler
-    # FIXME: Other attributes?
 
   def __str__(self):
     return '%s://%s' % (self.proto, self.name)
 
 
 class Frame:
-  def __init__(self, data):
-    hdr_len = data.index(b'\r\n\r\n')
-    hdr = str(data[:hdr_len], 'latin-1')
-    self.payload = data[hdr_len+4:]
-    self.headers = dict(ln.strip().split(': ', 1)
-      for ln in hdr.splitlines())
+  def __init__(self, data=None, headers=None, payload=None):
+    if data:
+      hdr_len = data.index(b'\r\n\r\n')
+      hdr = str(data[:hdr_len], 'latin-1')
+      self.payload = data[hdr_len+4:]
+      self.headers = dict(ln.strip().split(': ', 1)
+        for ln in hdr.splitlines())
+    else:
+      self.headers = headers
+      self.payload = payload
 
   sid = property(lambda s: s.headers.get('SID'))
   host = property(lambda s: s.headers.get('Host'))
@@ -115,6 +119,7 @@ class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
   APPVER = '0.0.1u'
+  PARSE_HTTP_HEADERS = re.compile('^(Host|User-Agent|Cookie):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   TOKEN_LENGTH = 36

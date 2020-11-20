@@ -42,17 +42,17 @@ if settings.get('kite_name') and settings.get('kite_secret'):
     env,
     MyProto)
 
-  kite = upagekite.Kite(
+  kite = upagekite.LocalHTTPKite(80,
     settings['kite_name'],
     settings['kite_secret'],
-    handler=httpd.handle_http_request)
+    httpd.handle_http_request)
 
   print("=2= Launching uPageKite Hello World: http://%s" % kite.name)
   print("=2= Press CTRL+C to abort and drop to REPL")
   print()
   time.sleep(2)
 
-  upk = upagekite.uPageKite([kite], proto=MyProto)
+  upk = upagekite.uPageKite([kite], socks=[kite], proto=MyProto)
   env['app']['upagekite'] = upk  # Expose to page logic
   upk.run()
 

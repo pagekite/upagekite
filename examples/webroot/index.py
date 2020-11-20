@@ -44,6 +44,6 @@ send_http_response(
   mhz,
   flash_size,
   gc.mem_free(),
-  str(frame.payload, 'latin-1').replace('<', '&lt;'),
+  ('%s' % http_headers).replace('<', '&lt;'),
   (', '.join(dir())).replace('<', '&lt;'),
   app['settings']['ssid']))
