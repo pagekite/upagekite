@@ -13,7 +13,10 @@ import time
 try:
   from boot import settings
 except:
-  settings = {}
+  try:
+    from bootstrap import settings
+  except:
+    settings = {}
 
 
 print("=2= Stage two (sample) loaded successfully!")

@@ -88,7 +88,7 @@ If for some reason your ESP32 is on a different network, or if your IP
 address changes frequently enough to be an annoyance, you may prefer to
 serve the code over `pagekite.py` instead, as described below.
 
-Otherwise, skip to the ESP32 setup section.
+Otherwise, skip to the ESP32 or localhost setup sections below.
 
 
 ### Bootstrap web server using pagekite.py
@@ -108,9 +108,11 @@ folder (the same folder as contains this README.md).
     pagekite.py . code-USER.pagekite.me
 ```
 
-Once you have navigated the sign-up, you can configure your ESP32
-bootstrap with `code_src` set to:
+Once you have navigated the sign-up, you can configure your bootstrap
+(localhost or ESP32) with `code_src` set to:
 `https://code-USER.pagekite.me/bootstrap.json`
+
+Now, proceed to the ESP32 or localhost setup sections below.
 
 
 ### Bootstrap setup on the ESP32
@@ -182,6 +184,35 @@ Follow these steps to configure your ESP32 for uPageKite development
 
 From this point on, you can simply edit the code on your computer and
 then reset the device, it will fetch the latest updates on boot.
+
+
+### Bootstrap setup on localhost
+
+If you want to work on your code locally, without an external device,
+uPageKite and the bootstrapping process will run under Python3 or
+MicroPython.
+
+1. Edit the bundled `bootstrap-config.json` file, adding `kite_name`
+   and `kite_secret` fields matching your PageKite credentials. The
+   completed file contents should look something like this:
+
+```
+{
+  "kite_name": "device-USER.pagekite.me",
+  "kite_secret": "SECRET",
+  "src": "http://127.0.0.1:8080/bootstrap.json"
+}
+```
+
+2. Run the bootstrap script:
+
+```
+    # With Python3
+    python3 scripts/bootstrap.py
+
+    # Or MicroPython
+    micropython scripts/bootstrap.py
+```
 
 
 ## Copyright and License
