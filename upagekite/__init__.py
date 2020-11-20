@@ -7,6 +7,7 @@
 #
 # See the files README.md and COPYING.txt for more details.
 #
+import gc
 import time
 import select
 
@@ -114,6 +115,7 @@ class uPageKite:
       return [relays[0][-1]]
 
   def relay_loop(self, relays):
+    gc.collect()
     processed = 0
     conns = []
     try:

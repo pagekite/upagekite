@@ -7,6 +7,7 @@
 #
 # See the files README.md and COPYING.txt for more details.
 #
+import gc
 import os
 import sys
 import socket
@@ -150,7 +151,7 @@ def download_code(url):
     print(' *  Updated local bootstrap.json')
 
 
-def bootstrap():
+def wifi_up():
   try:
     import network
     import time
@@ -166,7 +167,10 @@ def bootstrap():
   except:
     pass
 
+
+def bootstrap():
   try:
+    wifi_up()
     download_code(settings['src'])
   except Exception as e:
     print("!!! Network-based code update failed: %s" % e)
@@ -174,6 +178,8 @@ def bootstrap():
   print("=1= Chaining execution to bootstrap/stage_2 ...")
   if 'bootstrap' not in sys.path:
     sys.path.append('bootstrap')
+
+  gc.collect()
   execfile('bootstrap/stage_2.py')
 
 
