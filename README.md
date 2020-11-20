@@ -22,8 +22,9 @@ hosting a high-volume website. Not does it "solve" security. Be careful!
 1. Clone this repo: `git clone https://github.com/pagekite/upagekite/'
 2. Follow the **Bootstrapping Development** guide below
 3. Make your changes to [bootstrap_2.py](scripts/bootstrap_2.py)
-4. Add new code files to "mirror" in [bootstrap.json](bootstrap.json)
-5. Iterate!
+4. Create your website (see [examples/webroot](examples/webroot/))
+5. Add new code files to "mirror" in [bootstrap.json](bootstrap.json)
+6. Iterate!
 
 
 ## Project Status
