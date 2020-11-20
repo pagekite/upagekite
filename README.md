@@ -1,5 +1,8 @@
 # upagekite: MicroPython PageKite connector (for the ESP32)
 
+**WARNING:** This is ALPHA QUALITY CODE. Get in touch and have a chat
+             before using it for anything important! Here be dragons!
+
 This code makes it very easy to create simple web services in
 MicroPython and make them reachable from the wider Internet.
 
@@ -164,7 +167,7 @@ Follow these steps to configure your ESP32 for uPageKite development
     os.rename('bootstrap.py', 'boot.py')
 
 From this point on, you can simply edit the code on your computer and
-then reset the device - it will fetch the latest updates on boot.
+then reset the device, it will fetch the latest updates on boot.
 
 
 ## Copyright and License
