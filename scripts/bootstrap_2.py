@@ -20,8 +20,10 @@ print("=2= Stage two (sample) loaded successfully!")
 
 
 class MyProto(upagekite.uPageKiteDefaults):
-  trace = upagekite.uPageKiteDefaults.log
+  #trace = upagekite.uPageKiteDefaults.log
   debug = upagekite.uPageKiteDefaults.log
+  info  = upagekite.uPageKiteDefaults.log
+  error = upagekite.uPageKiteDefaults.log
 
 
 if settings.get('kite_name') and settings.get('kite_secret'):
@@ -33,7 +35,8 @@ if settings.get('kite_name') and settings.get('kite_secret'):
   httpd = upagekite.httpd.HTTPD(
     settings['kite_name'],
     '/bootstrap/webroot',
-    env)
+    env,
+    MyProto)
 
   kite = upagekite.Kite(
     settings['kite_name'],

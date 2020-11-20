@@ -1,8 +1,4 @@
-# A dynamically generated web page.
-#
-# Note that the entire HTTP/1.0 response is generated here, including the
-# HTTP/1.0 200 OK line and the HTTP headers.
-#
+# A dynamically generated web page!
 try:
   import esp
   flash_size = '%d' % (esp.flash_size(),)
@@ -15,11 +11,14 @@ try:
 except:
   mhz = 'unknown'
 
-conn.reply(frame, ("""
-HTTP/1.0 200 OK
-Content-Type: text/html
-Cache-Control: max-age=300
+import gc
+gc.collect()
 
+
+# Most of the arguments could be omitted, they have sensible defaults.
+send_http_response(
+  ttl=120, code=200, mimetype='text/html; charset=utf-8',
+  body=("""\
 <html><head>
   <link rel="icon" href="data:;base64,=">
   <style>
@@ -29,7 +28,7 @@ Cache-Control: max-age=300
 </head><body>
   <h1>Hello world!</h1>
   <p>This is <b>%s</b> at %s, you are %s</p>
-  <p>I have a %s CPU and %s bytes of flash.</p>
+  <p>I have a %s CPU and %s bytes of flash, %d bytes of free RAM.</p>
   <p>See also: <a href="/hello.html">hello</a><p>
   <h3>Your request:</h3>
   <pre>%s</pre>
@@ -38,12 +37,13 @@ Cache-Control: max-age=300
   <pre>WiFi SSID: %s</pre>
 </body></html>
 """) % (
-     open('/bootstrap/webroot/default.css').read(),  # Inline the CSS
-     kite.name,
-     time.time(),
-     frame.remote_ip,
-     mhz,
-     flash_size,
-     str(frame.payload, 'latin-1').replace('<', '&lt;'),
-     (', '.join(dir())).replace('<', '&lt;'),
-     app['settings']['ssid']))
+  open('/bootstrap/webroot/default.css').read(),  # Inline the CSS
+  kite.name,
+  time.time(),
+  frame.remote_ip,
+  mhz,
+  flash_size,
+  gc.mem_free(),
+  str(frame.payload, 'latin-1').replace('<', '&lt;'),
+  (', '.join(dir())).replace('<', '&lt;'),
+  app['settings']['ssid']))
