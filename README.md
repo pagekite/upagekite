@@ -46,6 +46,9 @@ hosting a high-volume website. Not does it "solve" security. Be careful!
 * Large HTTP POST requests or file uploads
 * Proxying to an external (web)server
 
+See our [Github Issues](https://github.com/pagekite/upagekite/issues/) for
+details and a more complete list.
+
 
 ## Bootstrapping Development
 
