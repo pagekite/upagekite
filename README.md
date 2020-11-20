@@ -196,9 +196,9 @@ If you want to work on your code locally, without an external device,
 uPageKite and the bootstrapping process will run under Python3 or
 MicroPython.
 
-1. Edit the bundled `bootstrap-config.json` file, adding `kite_name`
-   and `kite_secret` fields matching your PageKite credentials. The
-   completed file contents should look something like this:
+1. Edit the bundled [bootstrap-config.json](bootstrap-config.json) file,
+   adding `kite_name` and `kite_secret` fields matching your PageKite
+   credentials. The contents should look something like this:
 
 ```
 {
