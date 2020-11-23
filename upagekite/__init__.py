@@ -161,6 +161,14 @@ class uPageKite:
       return [relays[0][-1]]
 
   def relay_loop(self, relays):
+    wdt = None
+    try:
+      if self.proto.WATCHDOG_TIMEOUT:
+        from machine import WDT
+        wdt = WDT(timeout=self.proto.WATCHDOG_TIMEOUT)
+    except:
+      pass
+
     gc.collect()
     processed = 0
     conns = []
@@ -177,6 +185,9 @@ class uPageKite:
         #        relay (which should be relays[0]).
         pool = uPageKiteConnPool(conns, self)
         while True:
+          if wdt:
+            wdt.feed()
+          gc.collect()
           count = pool.process_io()
           if count is False:
             break

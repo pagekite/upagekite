@@ -124,6 +124,7 @@ class uPageKiteDefaults:
   FE_PORT = 443
   TOKEN_LENGTH = 36
   WITH_SSL = (ssl is not False)
+  WATCHDOG_TIMEOUT = 5000
 
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
