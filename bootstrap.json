@@ -6,6 +6,7 @@
     "upagekite/proto.py": true,
     "upagekite/httpd.py": true,
     "examples/webroot/index.py": "webroot/index.py",
+    "examples/webroot/reboot.py": "webroot/reboot.py",
     "examples/webroot/hello.html": "webroot/hello.html",
     "examples/webroot/default.css": "webroot/default.css",
     "scripts/bootstrap_2.py": "stage_2.py"
