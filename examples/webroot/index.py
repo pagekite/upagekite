@@ -37,7 +37,7 @@ send_http_response(
   <pre>WiFi SSID: %s</pre>
 </body></html>
 """) % (
-  open('/bootstrap/webroot/default.css').read(),  # Inline the CSS
+  open('bootstrap/webroot/default.css').read(),  # Inline the CSS
   kite.name,
   time.time(),
   frame.remote_ip,

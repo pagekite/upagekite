@@ -20,7 +20,7 @@ send_http_response("""\
   <h1>Rebooting!</h1>
   <p>Rebooting in 2 seconds... page refresh in <span id=t>60s</span>.</p>
 </body></html>
-""" % (open('/bootstrap/webroot/default.css').read(),))
+""" % (open('bootstrap/webroot/default.css').read(),))
 
 time.sleep(2)
 machine.reset()

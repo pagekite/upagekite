@@ -24,23 +24,26 @@ class LocalHTTPKite(Kite):
     self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
     self.fd.listen(5)
     self.client = None
+    self.sock = None
 
   def reply(self, frame, data=None, eof=True):
     if data:
-      self.client.setblocking(True)
-      self.client.write(data)
+      self.sock.setblocking(True)
+      self.client.write(bytes(data, 'latin-1'))
     if eof:
       self.client.close()
       self.client = None
 
   def process_io(self):
     try:
-      self.client, addr = self.fd.accept()
-      if hasattr(self.client, 'makefile'):
-        self.client = self.client.makefile('rwb')
+      self.sock, addr = self.fd.accept()
+      if hasattr(self.sock, 'makefile'):
+        self.client = self.sock.makefile('rwb')
+      else:
+        self.sock = self.client
 
       req = self.client.read(1)
-      self.client.setblocking(False)
+      self.sock.setblocking(False)
       req += self.client.read(4095)
 
       self.handler(self, self, Frame(payload=req, headers={
