@@ -163,14 +163,16 @@ def bootstrap_1():
       import network
       import time
       if settings.get('ssid') and settings.get('key'):
+        network.WLAN(network.AP_IF).active(False)
         wlan = network.WLAN(network.STA_IF)
-        if not wlan.isconnected():
-          wlan.active(True)
-          wlan.connect(settings['ssid'], settings['key'])
-          for i in range(0, 30):
-            if wlan.isconnected():
-              break
-            time.sleep(1)
+        wlan.active(False)
+        time.sleep(1)
+        wlan.active(True)
+        wlan.connect(settings['ssid'], settings['key'])
+        for i in range(0, 30):
+          if wlan.isconnected():
+            break
+          time.sleep(1)
     except:
       pass
 

@@ -38,15 +38,16 @@ class HTTPD:
     self.base_env = env
     self.last_env = {}
 
-  def http_response(self, code, msg, mimetype, ttl=None):
+  def http_response(self, code, msg, mimetype, ttl=None, hdrs={}):
     return (
         'HTTP/1.0 %d %s\r\n'
         'Server: %s\r\n'
         'Content-Type: %s\r\n'
-        '%s\r\n'
+        '%s%s\r\n'
       ) % (
         code, msg, self.proto.APPURL, mimetype,
-        ('Cache-Control: max-age=%d\r\n' % ttl) if ttl else '')
+        ('Cache-Control: max-age=%d\r\n' % ttl) if ttl else '',
+        ''.join('%s: %s\r\n' % (k, v) for k, v in hdrs.items()))
 
   def log_request(self, frame, method, path, code,
                   sent='-', headers={}, user='-'):
@@ -96,14 +97,18 @@ class HTTPD:
       pass
     try:
       fd = open(filename, 'r')
-    except Exception as e:
-      return self._err(404, 'Not Found', method, path, conn, frame, headers)
+    except:
+      try:
+        filename = self.webroot + '/404.py'
+        fd = open(filename, 'r')
+      except:
+        return self._err(404, 'Not Found', method, path, conn, frame, headers)
 
     try:
       if filename.endswith('.py'): 
         def r(body='', mimetype='text/html; charset=utf-8',
-              code=200, msg='OK', ttl=None):
-          rdata = self.http_response(code, msg, mimetype, ttl)
+              code=200, msg='OK', ttl=None, hdrs={}):
+          rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
           if method != 'HEAD':
             rdata += body
           conn.reply(frame, rdata)
