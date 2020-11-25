@@ -1,20 +1,20 @@
-# upagekite: MicroPython/ESP32 PageKite connector
+# upagekite: MicroPython/ESP32 PageKite web server
 
-**WARNING:** This is ALPHA QUALITY CODE. Get in touch and have a chat
-             before using it for anything important! Here be dragons!
-
-This code makes it very easy to create simple web services in
-MicroPython and make them reachable from the wider Internet.
+This code makes it very easy to create static web sites or simple web
+services in MicroPython, and automatically punch through firewalls and
+NAT to make the server reachable from the wider Internet.
 
 This is a minimal PageKite implementation written for use with
 MicroPython on the ESP32. It is also tested on Ubuntu/Python 3.7 and
-Ubuntu's MicroPython snap.
+Ubuntu's MicroPython snap. You will need access to a PageKite relay,
+such as those provided by [pagekite.net](https://pagekite.net/).
 
-You will need a [pagekite.net](https://pagekite.net/) account or your
-own PageKite relay.
 
 **WARNING:** This code does not magically make the ESP32 suitable for
 hosting a high-volume website. Not does it "solve" security. Be careful!
+
+**WARNING:** This is ALPHA QUALITY CODE. Get in touch and have a chat
+before using it for anything important! Here be dragons!
 
 
 ## Hacking uHowTo
