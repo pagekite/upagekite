@@ -13,6 +13,8 @@ import sys
 import time
 import json
 
+from .proto import ilistdir
+
 
 class HTTPD:
   MIMETYPES = {
@@ -84,7 +86,7 @@ class HTTPD:
       return self._err(400, 'Invalid request', method, path, conn, frame)
 
     try:
-      ls = os.listdir(filename)
+      ls = [l[0] for l in ilistdir(filename)]
       if 'index.py' in ls:
         filename = filename + '/index.py'
       elif 'index.html' in ls:

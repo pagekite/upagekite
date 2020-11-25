@@ -28,7 +28,7 @@ send_http_response(
 </head><body>
   <h1>Hello world!</h1>
   <p>This is <b>%s</b> at %s, you are %s</p>
-  <p>I have a %s CPU and %s bytes of flash, %d bytes of free RAM.</p>
+  <p>I have a %s CPU and %s bytes of flash, %s bytes of free RAM.</p>
   <p>See also: <a href="/hello.html">hello</a>, <a href="/reboot.py">reboot</a><p>
   <h3>Your request:</h3>
   <pre>%s</pre>
@@ -43,7 +43,7 @@ send_http_response(
   frame.remote_ip,
   mhz,
   flash_size,
-  gc.mem_free(),
+  gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown',
   ('%s' % http_headers).replace('<', '&lt;'),
   (', '.join(dir())).replace('<', '&lt;'),
-  app['settings']['ssid']))
+  app['settings'].get('ssid', 'unknown')))

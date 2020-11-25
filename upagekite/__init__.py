@@ -19,10 +19,14 @@ class LocalHTTPKite(Kite):
   def __init__(self, listen_on, name, secret, handler):
     Kite.__init__(self, name, secret, 'http', handler)
     self.listening_port = listen_on
-    self.fd = socket.socket()
-    self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
-    self.fd.listen(5)
+    try:
+      self.fd = socket.socket()
+      self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
+      self.fd.listen(5)
+    except Exception as e:
+      print("Oops, binding socket failed: %s" % e)
+      self.fd = None
     self.client = None
     self.sock = None
 
@@ -106,7 +110,8 @@ class uPageKiteConnPool:
 
     self.conns = dict((c.fd.fileno(), c) for c in conns)
     for so in pk.socks:
-      self.conns[so.fd.fileno()] = so
+      if so.fd:
+        self.conns[so.fd.fileno()] = so
 
     self.poll = select.poll()
     for fno in self.conns:
@@ -136,6 +141,9 @@ class uPageKite:
 
   def choose_relays(self, preferred=[]):
     relays = []
+    if len(self.kites) == 0:
+      return relays
+
     for kite in self.kites:
       for a in self.proto.get_kite_addrinfo(kite):
         if a[-1] not in relays and len(relays) < 10:
@@ -183,10 +191,10 @@ class uPageKite:
           if self.proto.error:
             self.proto.error('Failed to connect %s: %s' % (relay, e))
 
-      if conns:
+      pool = uPageKiteConnPool(conns, self)
+      if pool.conns:
         # FIXME: Update dynamic DNS with the details for our preferred
         #        relay (which should be relays[0]).
-        pool = uPageKiteConnPool(conns, self)
         while True:
           if wdt:
             wdt.feed()
@@ -211,7 +219,7 @@ class uPageKite:
     fallback = 1
     while self.keep_running:
       relays = self.choose_relays()
-      if relays and self.relay_loop(relays) > 0:
+      if (relays or not self.kites) and self.relay_loop(relays) > 0:
         fallback = 1
 
       if fallback > 1:

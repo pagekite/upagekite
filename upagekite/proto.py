@@ -37,6 +37,13 @@ except ImportError:
     return bytes(random.getrandbits(8) for r in range(0, length))
 
 try:
+  from os import ilistdir
+except ImportError:
+  from os import listdir
+  def ilistdir(path):
+    return ((d, None, None) for d in listdir(path))
+
+try:
   import ubinascii
   def sha1hex(data):
     return str(ubinascii.hexlify(
