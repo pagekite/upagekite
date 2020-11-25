@@ -221,18 +221,28 @@ micropython scripts/bootstrap.py
 
 ## Copyright and License
 
+**IMPORTANT:**  The upagekite default Free Software license (the GPLv3)
+is not suitable for use with most commercial embedded hardware projects,
+unless full sources are provided to end-users, along with tools and
+documentation necessary for them to make modification and changes.
+
+However, commercial licenses are available for sale for a reasonable
+fee. Get in touch!
+
+---
+
 Copyright (C) 2020, The Beanstalks Project ehf. and Bjarni R. Einarsson.
 
 This program is free software: you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or (at
-your option) any later version.
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
 
 This program is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
 
-You should have received a copy of the GNU Lesser General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/>.
 
