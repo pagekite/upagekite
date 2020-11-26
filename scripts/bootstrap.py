@@ -29,6 +29,16 @@ except NameError:
     exec(open(fn, 'r').read(), globals())
 
 
+def setting(key, val=None):
+  with open('bootstrap-config.json', 'rb') as fd:
+    settings = json.loads(fd.read())
+  if val is not None:
+    settings[key] = val
+    with open('bootstrap-config.json', 'wb') as fd:
+      fd.write(json.dumps(settings))
+  return settings[key]
+
+
 def bootstrap_2():
   print("=1= Chaining execution to bootstrap/stage_2 ...")
   if 'bootstrap' not in sys.path:
@@ -185,6 +195,7 @@ def bootstrap_1():
 
 if __name__ == "__main__":
   bootstrap_1()
+  del setting
   del bootstrap_1
   gc.collect()
   bootstrap_2()
