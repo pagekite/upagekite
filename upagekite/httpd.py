@@ -17,6 +17,10 @@ from .proto import ilistdir
 
 
 class HTTPD:
+  METHODS = (
+    'GET',
+    'HEAD',
+    'POST')
   MIMETYPES = {
     'css': 'text/css',
     'gif': 'image/gif',
@@ -36,7 +40,6 @@ class HTTPD:
     self.webroot = webroot
     self.static_max_age = 3600
     self.base_env = env
-    self.last_env = {}
 
   def http_response(self, code, msg, mimetype, ttl=None, hdrs={}):
     return (
@@ -72,7 +75,7 @@ class HTTPD:
     try:
       request, headers = str(frame.payload, 'latin-1').split('\r\n', 1)
       method, path, http = request.split(' ', 2)
-      if ('..' in path) or method not in ('GET', 'HEAD', 'POST'):
+      if ('..' in path) or method not in self.METHODS:
         raise ValueError()
       del frame.payload
       del request
@@ -116,13 +119,13 @@ class HTTPD:
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = qs
-        self.last_env = {
+        req_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json,
           'httpd': self, 'send_http_response': r,
           'kite': kite, 'conn': conn, 'frame': frame,
           'http_headers': headers}
-        self.last_env.update(self.base_env)
-        exec(fd.read(), self.last_env)
+        req_env.update(self.base_env)
+        exec(fd.read(), req_env)
       else:
         mimetype = self._mimetype(filename)
         resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
@@ -139,6 +142,6 @@ class HTTPD:
         self.log_request(frame, method, path, 200, sent, headers)
     except Exception as e:
       print('Exception: %s' % e)
-      return self._err(500, 'Internal Error', method, path, conn, frame, headers)
+      return self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:
       fd.close()
