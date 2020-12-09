@@ -16,6 +16,7 @@
 # the uPageKiteDefaults.connect() method should not run be run concurrently
 # with the same set of Kite objects.
 #
+import gc
 import re
 import sys
 import struct
@@ -63,23 +64,28 @@ except ImportError:
 try:
   import usocket as socket
   IOError = OSError
-  def sock_connect_stream(addr, ssl_wrap=False, timeouts=(20, 300)):
+  def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
+    if proto.trace:
+      proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
-        return (s, ssl.wrap_socket(s))
-    return s
+      gc.collect()
+      return (s, ssl.wrap_socket(s))
+    return (s, s)
 except ImportError:
   import socket
-  def sock_connect_stream(addr, ssl_wrap=False, timeouts=(20, 300)):
+  def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
+    if proto.trace:
+      proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
-        s = ssl.wrap_socket(s)
+      s = ssl.wrap_socket(s)
     return (s, s.makefile("rwb", 0))
 
 
@@ -129,8 +135,14 @@ class uPageKiteDefaults:
   PARSE_HTTP_HEADERS = re.compile('^(Host|User-Agent|Cookie):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
+  DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
+              '/?hostname=%(domain)s&myip=%(ips)s&sign=%(sign)s')
   TOKEN_LENGTH = 36
   WITH_SSL = (ssl is not False)
+
+  TICK_INTERVAL = 16
+  MIN_CHECK_INTERVAL = 16
+  MAX_CHECK_INTERVAL = 900
   WATCHDOG_TIMEOUT = 5000
 
   trace = False  # Set to log in subclass to enable noise
@@ -157,6 +169,45 @@ class uPageKiteDefaults:
     return rs
 
   @classmethod
+  def http_get(cls, proto, host, path, http_host=None, atonce=1024, maxread=8196):
+    if ':' in host:
+      hostname, port = host.split(':')
+    else:
+      port = 443 if (proto == 'https') else 80
+      hostname = host
+
+    t0 = ticks_ms()
+    cfd, conn = sock_connect_stream(cls,
+      socket.getaddrinfo(hostname, int(port))[0][-1],
+      ssl_wrap=(proto == 'https'))
+    cls.send_raw(conn,
+      'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host or host))
+
+    t1 = ticks_ms()
+    response = b''
+    while len(response) < maxread:
+      try:
+        data = conn.read(atonce)
+        response += data
+      except:
+        data = None
+      if not data:
+        break
+    conn.close()
+    t2 = ticks_ms()
+
+    try:
+      header, body = response.split(b'\r\n\r\n', 1)
+    except ValueError:
+      header = response
+      body = ''
+    header_lines = str(header, 'latin-1').splitlines()
+    return (
+      header_lines[0],
+      dict(l.split(': ', 1) for l in header_lines[1:]),
+      t1-t0, t2-t1, body)
+
+  @classmethod
   def get_kite_addrinfo(cls, kite):
     try:
       return socket.getaddrinfo(kite.name, cls.FE_PORT)
@@ -174,16 +225,16 @@ class uPageKiteDefaults:
 
   @classmethod
   def ping_relay(cls, relay_addr, bias=1.0):
-    t0 = ticks_ms()
     try:
-      s = socket.socket()
-      s.connect(relay_addr)
+      l1, hdrs, t1, t2, body = cls.http_get(
+        'http', '%s:%d' % relay_addr, '/ping',
+        http_host='ping.pagekite', atonce=250)
 
-      # FIXME: Implement X-PageKite-Overloaded support here
-
-      s.close()
-      elapsed = ticks_ms() - t0
+      elapsed = t1 + t2
       biased = int(float(elapsed) * bias)
+      if 'X-PageKite-Overloaded' in hdrs:
+        biased += 250 if (bias == 1.0) else 50
+
       if cls.debug:
         cls.debug('Ping %s ok: %dms (~%dms)' % (relay_addr, elapsed, biased))
       return biased
@@ -249,15 +300,17 @@ class uPageKiteDefaults:
       raise EofTunnelError()
 
   @classmethod
-  def sign(cls, secret, payload, salt=None, ts=None):
+  def sign(cls, secret, payload, salt=None, ts=None, length=None):
     if not salt:
       salt = '%x' % struct.unpack('I', cls.make_random_secret()[:4])
+    if not length:
+      length = cls.TOKEN_LENGTH
     if ts:
       salt = 't' + salt[1:]
       payload += '%x' % int(ts / 600)
     return (
       salt[0:8] +
-      sha1hex(secret + payload + salt[0:8])[:cls.TOKEN_LENGTH-8])
+      sha1hex(secret + payload + salt[0:8])[:length-8])
 
   @classmethod
   def x_pagekite(cls, relay_addr, kites, global_secret):
@@ -306,7 +359,7 @@ class uPageKiteDefaults:
       kite.challenge = ''
 
     # Connect, get fresh challenges
-    cfd, conn = sock_connect_stream(relay_addr, ssl_wrap=cls.WITH_SSL)
+    cfd, conn = sock_connect_stream(cls, relay_addr, ssl_wrap=cls.WITH_SSL)
     cls.send_raw(conn, (
         'CONNECT PageKite:1 HTTP/1.0\r\n'
         'X-PageKite-Features: AddKites\r\n'
@@ -343,3 +396,26 @@ class uPageKiteDefaults:
     if cls.info:
       cls.info('Connected to %s' % (relay_addr,))
     return cfd, conn
+
+  @classmethod
+  def update_dns(cls, relay_ip, kites):
+    proto, host, path_fmt = cls.DDNS_URL
+    errors = 0
+    for kite in kites:
+      try:
+        payload = '%s:%s' % (kite.name, relay_ip)
+        l1, hdrs, t1, t2, body = cls.http_get(
+          proto, host, path_fmt % {
+            'domain': kite.name,
+            'sign': cls.sign(kite.secret, payload, length=100),
+            'ips': relay_ip})
+        if not (body.startswith(b'good') or body.startswith(b'nochg')):
+          errors += 1
+      except Exception as e:
+        body = 'failed, %s' % e
+        errors += 1
+      if cls.debug:
+        cls.debug('DNS update %s to %s: %s' % (
+          kite.name, relay_ip, str(body, 'latin-1').strip()))
+
+    return (errors == 0)

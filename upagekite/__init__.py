@@ -15,6 +15,22 @@ import select
 from .proto import socket, Kite, Frame, EofTunnelError, uPageKiteDefaults
 
 
+try:
+  from ntptime import settime
+except ImportError:
+  settime = None
+
+def _ntp_settime(proto):
+  if settime is not None:
+    try:
+      if proto.info:
+        proto.info('Attempting to set the time using NTP...')
+      settime()
+    except:
+      if proto.error:
+        proto.error('Failed to set NTP time: %s' % e)
+
+
 class LocalHTTPKite(Kite):
   def __init__(self, listen_on, name, secret, handler):
     Kite.__init__(self, name, secret, 'http', handler)
@@ -38,6 +54,10 @@ class LocalHTTPKite(Kite):
       self.client.close()
       self.client = None
 
+  def close(self):
+    if self.sock:
+      self.sock.close()
+
   def process_io(self):
     try:
       self.sock, addr = self.fd.accept()
@@ -56,6 +76,8 @@ class LocalHTTPKite(Kite):
         'Port': self.listening_port,
         'RIP': '::ffff:%s' % (addr[0],)}))
 
+    except KeyboardInterrupt:
+      raise
     except Exception as e:
       print('Oops: %s' % e)
       return False
@@ -65,14 +87,22 @@ class LocalHTTPKite(Kite):
 class uPageKiteConn:
   def __init__(self, relay_addr, pk):
     self.pk = pk
+    self.ip = relay_addr[0]
     self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
     self.pk.last_data_ts = time.time()
+    self.last_settime = time.time()
+
+  def __str__(self):
+    return "<uPageKiteConn(%s)>" % self.ip
 
   def reply(self, frame, data=None, eof=True):
     if data:
       self.pk.proto.send_data(self.conn, frame, data)
     if eof:
       self.pk.proto.send_eof(self.conn, frame)
+
+  def close(self):
+    self.fd.close()
 
   def process_io(self):
     try:
@@ -83,6 +113,15 @@ class uPageKiteConn:
 
         if frame.ping:
           self.pk.proto.send_pong(self.conn, frame.ping)
+          # Pings mean we are idle. Use idle moments to synchronize our clock.
+          #
+          # FIXME: The ping usually includes the time at the relay, we should
+          #        just use that instead of NTP (if it looks plausible).
+          #
+          if (self.last_settime < time.time() - 12*3600 or
+              time.time() < 0x27640000):
+            _ntp_settime(self.pk.proto)
+            self.last_settime = time.time()
 
         elif frame.sid and frame.host and frame.proto:
           for kite in self.pk.kites:
@@ -117,12 +156,16 @@ class uPageKiteConnPool:
     for fno in self.conns:
       self.poll.register(self.conns[fno].fd, select.POLLIN)
 
-  def process_io(self, timeout=2000):
+  def process_io(self, timeout):
     count = 0
+    if self.pk.proto.trace:
+      self.pk.proto.trace('Entering poll(%d)' % timeout)
     for (obj, event) in self.poll.poll(timeout):
       if event != select.POLLIN:
         return False
       conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
+      if self.pk.proto.trace:
+        self.pk.proto.trace('process_io(%s)' % conn)
       if conn.process_io():
         count += 1
       else:
@@ -138,8 +181,10 @@ class uPageKite:
     self.kites = kites
     self.socks = socks
     self.secret = proto.make_random_secret([(k.name, k.secret) for k in kites])
+    self.want_dns_update = [0]
 
   def choose_relays(self, preferred=[]):
+    gc.collect()
     relays = []
     if len(self.kites) == 0:
       return relays
@@ -171,59 +216,161 @@ class uPageKite:
     else:
       return [relays[0][-1]]
 
-  def relay_loop(self, relays):
+  def connect_relays(self, relays, now):
+    conns = []
+    self.want_dns_update = [0]
+    for relay in relays:
+      try:
+        conns.append(uPageKiteConn(relay, self))
+      except Exception as e:
+        if self.proto.error:
+          self.proto.error('Failed to connect %s: %s' % (relay, e))
+    if conns:
+      self.want_dns_update = [now - 1, conns[0].ip]
+    return conns
+
+  def relay_loop(self, conns, deadline):
+    max_timeout = 30000
     wdt = None
     try:
       if self.proto.WATCHDOG_TIMEOUT:
         from machine import WDT
         wdt = WDT(timeout=self.proto.WATCHDOG_TIMEOUT)
+        max_timeout = min(max_timeout, self.proto.WATCHDOG_TIMEOUT // 2)
+    except KeyboardInterrupt:
+      raise
     except:
       pass
 
     gc.collect()
-    processed = 0
-    conns = []
     try:
-      for relay in relays:
-        try:
-          conns.append(uPageKiteConn(relay, self))
-        except Exception as e:
-          if self.proto.error:
-            self.proto.error('Failed to connect %s: %s' % (relay, e))
-
       pool = uPageKiteConnPool(conns, self)
-      if pool.conns:
-        # FIXME: Update dynamic DNS with the details for our preferred
-        #        relay (which should be relays[0]).
-        while True:
-          if wdt:
-            wdt.feed()
-          gc.collect()
-          count = pool.process_io()
-          if count is False:
-            break
-          elif count:
-            processed += count
-          else:
-            pass  # We are idle, do housekeeping?
+      while pool.conns and time.time() < deadline:
+        if wdt:
+          wdt.feed()
 
-      return processed
-    finally:
-      for conn in conns:
-        try:
-          conn.close()
-        except:
-          pass
+        timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
+        gc.collect()
+        if pool.process_io(timeout) is False:
+          raise EofTunnelError()
+
+      # Happy ending!
+      return True
+    except KeyboardInterrupt:
+      raise
+    except:
+      pass
+
+    # We've fallen through to our unhappy ending, clean up
+    for conn in conns:
+      try:
+        conn.close()
+      except Exception as e:
+        print("Oops, close(%s): %s" % (conn, e))
+    return False
+
+  # This is easily overridden by subclasses
+  def tick(self, **attrs):
+    if self.proto.info:
+      self.proto.info("Tick! This is %s %s%s"
+        % (self.proto.APPNAME, self.proto.APPVER,
+           ''.join('; %s=%s' % pair for pair in attrs.items())))
+
+  def check_relays(self, now, back_off):
+    self.want_dns_update = [0]
+    relays = self.choose_relays()
+    if relays:
+      relays = self.connect_relays(relays, now)
+      # FIXME: Did we fail to make some connections?
+
+    if relays:
+      back_off = 1
+    else:
+      back_off = min(back_off * 2,
+        self.proto.MAX_CHECK_INTERVAL // self.proto.MIN_CHECK_INTERVAL)
+      if self.proto.info:
+        self.proto.info(
+          "Next connection attempt in %d+ seconds..."
+          % (back_off * self.proto.MIN_CHECK_INTERVAL))
+
+    return relays, back_off
+
+  def check_dns(self, now, relays, back_off):
+    recheck_max = 0
+    if now > 3600:
+      recheck_max = max(0, 3600 // self.proto.MIN_CHECK_INTERVAL)
+      if 1 < self.want_dns_update[0] <= recheck_max:
+        self.want_dns_update[0] -= 1
+    else:
+      pass  # Clock is wonky, disable the recheck magic for now
+
+    if 1 == self.want_dns_update[0]:
+      self.want_dns_update[0] = recheck_max
+      for kite in self.kites:
+        if self.proto.trace:
+          self.proto.trace("Checking current DNS state for %s" % kite)
+        for a in self.proto.get_kite_addrinfo(kite):
+          if a[-1][0] not in self.want_dns_update:
+            if self.proto.info:
+              self.proto.info(
+                "DNS for %s is wrong (%s), will update" % (kite, a[-1][0]))
+            self.want_dns_update[0] = now + (back_off * self.proto.MIN_CHECK_INTERVAL * 2)
+            # FIXME: Was that the right thing to do?
+
+    if recheck_max < self.want_dns_update[0] < now:
+      if self.proto.update_dns(self.want_dns_update[1], self.kites):
+        self.want_dns_update[0] = recheck_max
+        if relays:
+          back_off = 1
+      else:
+        back_off = min(back_off * 2,
+          self.proto.MAX_CHECK_INTERVAL // self.proto.MAX_CHECK_INTERVAL)
+        self.want_dns_update[0] = now + (back_off * self.proto.MIN_CHECK_INTERVAL * 2)
+        if self.proto.info:
+          self.proto.info(
+            "Next DNS update attempt in %d+ seconds..."
+            % (self.want_dns_update[0] - now))
+
+    return relays, back_off
 
   def run(self):
-    fallback = 1
-    while self.keep_running:
-      relays = self.choose_relays()
-      if (relays or not self.kites) and self.relay_loop(relays) > 0:
-        fallback = 1
+    if time.time() < 0x27640000:
+      _ntp_settime(self.proto)
 
-      if fallback > 1:
-        if self.proto.info:
-          self.proto.info("Sleeping %d seconds..." % fallback)
-        time.sleep(fallback)
-      fallback = min(fallback * 2, 64)
+    next_check = time.time()
+    back_off = 1
+    relays = []
+    while self.keep_running:
+      now = time.time()
+      self.tick(
+        back_off=back_off,
+        relays=len(relays),
+        mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
+
+      if next_check <= now:
+        # Check our relay status? Reconnect?
+        if not relays:
+          relays, back_off = self.check_relays(now, back_off)
+
+        # Is DNS up to date?
+        if relays:
+          relays, back_off = self.check_dns(now, relays, back_off)
+
+      # Schedule our next check; it should be neither too far in the future,
+      # nor in the distant past. Clocks can misbehave, so we check for both.
+      if next_check > now + back_off * self.proto.MIN_CHECK_INTERVAL:
+        next_check = now + back_off * self.proto.MIN_CHECK_INTERVAL
+      while next_check <= now:
+        next_check += back_off * self.proto.MIN_CHECK_INTERVAL
+
+      # Process IO events for a while, or sleep.
+      if relays or self.socks:
+        if not self.relay_loop(relays, now + self.proto.TICK_INTERVAL):
+          if relays:
+            # We had a working connection, it broke! Reconnect ASAP.
+            next_check = now
+          relays = []
+      else:
+        if self.proto.debug:
+          self.proto.debug("No sockets available, sleeping until %x" % next_check)
+        time.sleep(next_check - time.time())
