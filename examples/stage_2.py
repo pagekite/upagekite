@@ -87,7 +87,7 @@ def get_upk():
     httpd.handle_http_request)
   if settings.get('kite_name') and settings.get('kite_secret'):
     env['kites'].append(kite)
-  if HTTPD_PORT:
+  if kite.fd:
     env['socks'].append(kite)
 
   if CDNS_PORT == 53:

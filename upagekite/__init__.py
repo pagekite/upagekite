@@ -79,7 +79,7 @@ class LocalHTTPKite(Kite):
     except KeyboardInterrupt:
       raise
     except Exception as e:
-      print('Oops: %s' % e)
+      print('Oops, process_io: %s' % e)
       return False
     return True
 
@@ -87,7 +87,7 @@ class LocalHTTPKite(Kite):
 class uPageKiteConn:
   def __init__(self, relay_addr, pk):
     self.pk = pk
-    self.ip = relay_addr[0]
+    self.ip = pk.proto.addr_to_quad(relay_addr)
     self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
     self.pk.last_data_ts = time.time()
     self.last_settime = time.time()
@@ -222,6 +222,8 @@ class uPageKite:
     for relay in relays:
       try:
         conns.append(uPageKiteConn(relay, self))
+      except KeyboardInterrupt:
+        raise
       except Exception as e:
         if self.proto.error:
           self.proto.error('Failed to connect %s: %s' % (relay, e))
@@ -251,15 +253,16 @@ class uPageKite:
 
         timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
         gc.collect()
-        if pool.process_io(timeout) is False:
+        if pool.process_io(int(timeout)) is False:
+          print('Eof tunnel?')
           raise EofTunnelError()
 
       # Happy ending!
       return True
     except KeyboardInterrupt:
       raise
-    except:
-      pass
+    except Exception as e:
+      print('Oops, relay_loop: %s' % e)
 
     # We've fallen through to our unhappy ending, clean up
     for conn in conns:
@@ -272,7 +275,7 @@ class uPageKite:
   # This is easily overridden by subclasses
   def tick(self, **attrs):
     if self.proto.info:
-      self.proto.info("Tick! This is %s %s%s"
+      self.proto.info("Tick: %s %s%s"
         % (self.proto.APPNAME, self.proto.APPVER,
            ''.join('; %s=%s' % pair for pair in attrs.items())))
 
@@ -337,14 +340,15 @@ class uPageKite:
     if time.time() < 0x27640000:
       _ntp_settime(self.proto)
 
-    next_check = time.time()
+    next_check = int(time.time())
     back_off = 1
     relays = []
     while self.keep_running:
-      now = time.time()
+      now = int(time.time())
       self.tick(
         back_off=back_off,
         relays=len(relays),
+        socks=len(self.socks),
         mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
 
       if next_check <= now:
@@ -373,4 +377,4 @@ class uPageKite:
       else:
         if self.proto.debug:
           self.proto.debug("No sockets available, sleeping until %x" % next_check)
-        time.sleep(next_check - time.time())
+        time.sleep(max(0, next_check - int(time.time())))

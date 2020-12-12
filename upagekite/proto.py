@@ -23,6 +23,7 @@ import struct
 import time
 import select
 from hashlib import sha1
+from struct import unpack
 
 try:
   from time import ticks_ms
@@ -155,6 +156,14 @@ class uPageKiteDefaults:
     print('[%x] %s' % (int(time.time()), message))
 
   @classmethod
+  def addr_to_quad(cls, addr):
+    if isinstance(addr, tuple):
+      return addr[0]
+    if isinstance(addr, bytearray):
+      return '.'.join('%d' % b for b in unpack('8B', addr)[4:])
+    return addr
+
+  @classmethod
   def make_random_secret(cls, salt=''):
     # We do not know how good our randomness is; if it is really good, then
     # the salt and platform and time don't matter. If it is bad, then we
@@ -169,19 +178,21 @@ class uPageKiteDefaults:
     return rs
 
   @classmethod
-  def http_get(cls, proto, host, path, http_host=None, atonce=1024, maxread=8196):
-    if ':' in host:
-      hostname, port = host.split(':')
-    else:
-      port = 443 if (proto == 'https') else 80
-      hostname = host
+  def http_get(cls, proto, http_host, path, addr=None, atonce=1024, maxread=8196):
+    if addr is None:
+      addr = http_host
+    if hasattr(addr, 'split'):
+      if ':' in addr:
+        hostname, port = addr.split(':')
+      else:
+        port = 443 if (proto == 'https') else 80
+        hostname = addr
+      addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
     t0 = ticks_ms()
-    cfd, conn = sock_connect_stream(cls,
-      socket.getaddrinfo(hostname, int(port))[0][-1],
-      ssl_wrap=(proto == 'https'))
+    cfd, conn = sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
     cls.send_raw(conn,
-      'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host or host))
+      'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host))
 
     t1 = ticks_ms()
     response = b''
@@ -210,7 +221,7 @@ class uPageKiteDefaults:
   @classmethod
   def get_kite_addrinfo(cls, kite):
     try:
-      return socket.getaddrinfo(kite.name, cls.FE_PORT)
+      return socket.getaddrinfo(kite.name, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       return []
 
@@ -218,7 +229,7 @@ class uPageKiteDefaults:
   def get_relays_addrinfo(cls):
     try:
       if cls.FE_NAME:
-        return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT)
+        return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       pass
     return []
@@ -227,8 +238,8 @@ class uPageKiteDefaults:
   def ping_relay(cls, relay_addr, bias=1.0):
     try:
       l1, hdrs, t1, t2, body = cls.http_get(
-        'http', '%s:%d' % relay_addr, '/ping',
-        http_host='ping.pagekite', atonce=250)
+        'http', 'ping.pagekite', '/ping', relay_addr,
+        atonce=250)
 
       elapsed = t1 + t2
       biased = int(float(elapsed) * bias)
