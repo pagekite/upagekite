@@ -2,17 +2,17 @@
   "version": 0,
   "base_url_path": "",
   "mirror": {
+    "scripts/bootstrap.py": true,
     "upagekite/__init__.py": true,
     "upagekite/proto.py": true,
     "upagekite/httpd.py": true,
     "upagekite/captive.py": true,
+    "examples/stage_2.py": "stage_2.py",
     "examples/webroot/index.py": "webroot/index.py",
     "examples/webroot/reboot.py": "webroot/reboot.py",
     "examples/webroot/hello.html": "webroot/hello.html",
     "examples/webroot/default.css": "webroot/default.css",
     "examples/captive/setup/index.py": "captive/setup/index.py",
-    "examples/captive/404.py": "captive/404.py",
-    "scripts/bootstrap.py": true,
-    "scripts/bootstrap_2.py": "stage_2.py"
+    "examples/captive/404.py": "captive/404.py"
   }
 }
