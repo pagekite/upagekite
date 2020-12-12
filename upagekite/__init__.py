@@ -35,6 +35,7 @@ class LocalHTTPKite(Kite):
   def __init__(self, listen_on, name, secret, handler):
     Kite.__init__(self, name, secret, 'http', handler)
     self.listening_port = listen_on
+    self.handlers = {}
     try:
       self.fd = socket.socket()
       self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -54,11 +55,22 @@ class LocalHTTPKite(Kite):
       self.client.close()
       self.client = None
 
+  def await_data(self, sid, handler, nbytes):
+    self.sock.setblocking(True)
+    while nbytes > 0:
+      more = self.client.read(min(2048, nbytes))
+      handler(Frame(payload=more))
+      if more:
+        nbytes -= len(more)
+      else:
+        break
+
   def close(self):
     if self.sock:
       self.sock.close()
 
   def process_io(self):
+    self.sock = None
     try:
       self.sock, addr = self.fd.accept()
       if hasattr(self.sock, 'makefile'):
@@ -81,6 +93,9 @@ class LocalHTTPKite(Kite):
     except Exception as e:
       print('Oops, process_io: %s' % e)
       return False
+    finally:
+      self.close()
+
     return True
 
 
@@ -91,6 +106,7 @@ class uPageKiteConn:
     self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
     self.pk.last_data_ts = time.time()
     self.last_settime = time.time()
+    self.handlers = {}
 
   def __str__(self):
     return "<uPageKiteConn(%s)>" % self.ip
@@ -101,7 +117,11 @@ class uPageKiteConn:
     if eof:
       self.pk.proto.send_eof(self.conn, frame)
 
+  def await_data(self, sid, handler, nbytes):
+    self.handlers[sid] = handler
+
   def close(self):
+    self.handlers = {}
     self.fd.close()
 
   def process_io(self):
@@ -113,6 +133,12 @@ class uPageKiteConn:
 
         if frame.ping:
           self.pk.proto.send_pong(self.conn, frame.ping)
+
+          # Pings mean we are idle. Reap and close any idle streams/handlers.
+          for sid in self.handlers:
+            self.reply(Frame(headers={'SID': sid}), eof=True)
+          self.handlers = {}
+
           # Pings mean we are idle. Use idle moments to synchronize our clock.
           #
           # FIXME: The ping usually includes the time at the relay, we should
@@ -123,6 +149,15 @@ class uPageKiteConn:
             _ntp_settime(self.pk.proto)
             self.last_settime = time.time()
 
+        elif frame.sid and frame.sid in self.handlers:
+          try:
+            self.handlers[frame.sid](frame)
+          except Exception as e:
+            print('Oops, sid handler: %s' % e)
+            self.reply(frame, eof=True)
+            if frame.sid in self.handlers:
+              del self.handlers[frame.sid]
+
         elif frame.sid and frame.host and frame.proto:
           for kite in self.pk.kites:
             if kite.name == frame.host and kite.proto == frame.proto:
@@ -132,7 +167,9 @@ class uPageKiteConn:
               kite.handler(kite, self, frame)
               break
 
-        # FIXME: Detect additional data for an established stream
+        elif frame.sid:
+          self.reply(frame, eof=True)
+
         # FIXME: Detect and report quota values? Other things?
 
       # Zero-length chunks aren't an error condition

@@ -41,6 +41,28 @@ class HTTPD:
     self.static_max_age = 3600
     self.base_env = env
 
+  @classmethod
+  def unquote(cls, quoted):
+    if isinstance(quoted, str):
+      quoted = bytes(quoted, 'latin-1')
+    _in = quoted.split(b'%')
+    _out = [_in[0]]
+    for frag in _in[1:]:
+      try:
+        _out.extend([bytes([int(frag[:2], 16)]), frag[2:]])
+      except ValueError:
+        _out.extend([b'%', frag])
+    try:
+      return str(b''.join(_out), 'utf-8')
+    except UnicodeError:
+      return quoted
+
+  @classmethod
+  def qs_to_list(cls, qs):
+    return [
+      [cls.unquote(part) for part in pair.split('=', 1)]
+      for pair in qs.split('&')]
+
   def http_response(self, code, msg, mimetype, ttl=None, hdrs={}):
     return (
         'HTTP/1.0 %d %s\r\n'
@@ -55,7 +77,7 @@ class HTTPD:
   def log_request(self, frame, method, path, code,
                   sent='-', headers={}, user='-'):
     if self.proto.info:
-      self.proto.info('[HTTPD] %s %s - %s %s:%s%s - %s %s - %s' % (
+      self.proto.info('[www] %s %s - %s %s:%s%s - %s %s - %s' % (
         user, frame.remote_ip,
         method, frame.host, frame.port, path,
         code, sent,
@@ -73,12 +95,14 @@ class HTTPD:
     #        long running requests. This is just one-shot for now.
     method = path = '-'
     try:
-      request, headers = str(frame.payload, 'latin-1').split('\r\n', 1)
+      headers = frame.payload.split(b'\r\n\r\n', 1)[0]
+      request, headers = str(headers, 'latin-1').split('\r\n', 1)
       method, path, http = request.split(' ', 2)
       if ('..' in path) or method not in self.METHODS:
         raise ValueError()
-      del frame.payload
       del request
+      if method != 'POST':
+        frame.payload = b''
       qs = ''
       if '?' in path:
         path, qs = path.split('?', 1)
@@ -110,15 +134,15 @@ class HTTPD:
     try:
       if filename.endswith('.py'): 
         def r(body='', mimetype='text/html; charset=utf-8',
-              code=200, msg='OK', ttl=None, hdrs={}):
+              code=200, msg='OK', ttl=None, eof=True, hdrs={}):
           rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
           if method != 'HEAD':
             rdata += body
-          conn.reply(frame, rdata)
+          conn.reply(frame, rdata, eof=eof)
           self.log_request(frame, method, path, code, len(rdata), headers)
         headers['_method'] = method
         headers['_path'] = path
-        headers['_qs'] = qs
+        headers['_qs'] = self.qs_to_list(qs)
         req_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json,
           'httpd': self, 'send_http_response': r,

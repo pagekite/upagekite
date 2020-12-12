@@ -133,7 +133,7 @@ class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
   APPVER = '0.0.1u'
-  PARSE_HTTP_HEADERS = re.compile('^(Host|User-Agent|Cookie):')
+  PARSE_HTTP_HEADERS = re.compile('^(Host|User-Agent|Cookie|Content-(Length|Type)):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
