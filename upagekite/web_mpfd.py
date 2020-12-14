@@ -8,7 +8,7 @@
 # Commercial licenses are for sale. See the files README.md and COPYING.txt
 # for more details.
 #
-from .web import ParseNull, parse_hdr
+from .web import PostVars, ParseNull, parse_hdr
 
 # This should be an efficient state machine for iterating over a buffer,
 # yielding each individual line for processing. Line lengths are capped
@@ -32,7 +32,6 @@ class ParseMPFD(ParseNull):
   TEMP_FN = 0
 
   def __init__(self, *args):
-    self.post_data = {}
     self.in_header = True
     self.varname = None
     self.payload = {'value': ''}
@@ -47,9 +46,12 @@ class ParseMPFD(ParseNull):
       'fd': open(temp_filename, 'wb')}
 
   def parse(self):
-    self.headers['_post_data'] = self.post_data
+    post_data = self.headers['_post_data']
     box = [self.frame.payload]
     for line in _lines(box):
+      if self.proto.trace:
+        self.proto.trace('<<%s' % line)
+
       if (line[:2] == b'--') and line[2:].startswith(self.attrs['boundary']):
         if 'fd' in self.payload:
           self.payload['bytes'] -= 2
@@ -58,7 +60,7 @@ class ParseMPFD(ParseNull):
         if self.varname:
           if self.payload['value'].endswith('\r\n'):
             self.payload['value'] = self.payload['value'][:-2]
-          self.post_data[self.varname] = self.payload
+          post_data[self.varname] = self.payload
         self.in_header = True
         self.payload = {'value': ''}
 
