@@ -13,7 +13,7 @@ Contents:
 -----------------------------------------------------------------------
 ## Limitations
 
-uPagekite includes a very minimal implementation of a web server, which
+uPageKite includes a very minimal implementation of a web server, which
 is designed to run under tight memory constraints on embedded hardware.
 
 This is a brief summary of the main differences between uPageKite
@@ -29,18 +29,21 @@ prevent any other work from getting done.
 Ideally, every response should be small enough to fit in one or two
 TCP/IP packets (<3000 bytes).
 
+In general, the uPageKite code is written to minimize memory use, even
+if that requires using more CPU cycles. Speed was not a design goal.
+
 ### Subset of HTTP/1.1
 
-The server only supports the most commonly used subset of HTTP/1.1:
-there is no fancy encoding, every connection is closed after use and so
-forth.
+The server only supports a simple subset of HTTP/1.1: there is no fancy
+encoding, every connection is closed after use and so forth.
 
 File and form uploads are only supported using the `multipart/form-data`
 encoding; uploaded files are streamed directly to the SD card, so they
 can exceed available RAM. Other form variables must fit in memory.
 
 JSON-RPC is supported (`application/json` uploads), but the payload MUST
-be small enough to fit in the devices free memory.
+be small enough to simultaneously fit in the device's free memory raw
+and decoded.
 
 ### Limited security
 

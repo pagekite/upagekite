@@ -1,4 +1,6 @@
-# A dynamically generated web page!
+# This file from the uPageKite distribution is placed in the Public Domain.
+# Remix at will!
+
 try:
   import esp
   flash_size = '%d' % (esp.flash_size(),)

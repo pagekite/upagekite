@@ -1,6 +1,10 @@
-# FIXME: This would be a good place to demo HTTP authentication?
+# This file from the uPageKite distribution is placed in the Public Domain.
+# Remix at will!
+
 import time
 import machine
+
+# FIXME: This would be a good place to demo HTTP authentication?
 
 send_http_response("""\
 <html><head>

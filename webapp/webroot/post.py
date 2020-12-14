@@ -1,4 +1,6 @@
-# A dynamically generated web page!
+# This file from the uPageKite distribution is placed in the Public Domain.
+# Remix at will!
+
 from upagekite.web import handle_big_request
 
 def respond():
