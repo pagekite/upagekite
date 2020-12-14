@@ -47,6 +47,10 @@ class LocalHTTPKite(Kite):
     self.client = None
     self.sock = None
 
+  def __str__(self):
+    return '<LocalHTTPKite(%s://%s):%d>' % (
+      self.proto, self.name, self.listening_port)
+
   def reply(self, frame, data=None, eof=True):
     if data:
       self.sock.setblocking(True)
@@ -206,7 +210,7 @@ class uPageKiteConnPool:
         if conn.last_data_ts < dead:
           if self.pk.proto.info:
             self.pk.proto.info(
-              'No PING response from <%s>, assuming it is down.' % (conn,))
+              'No PING response from %s, assuming it is down.' % (conn,))
           return False
         elif conn.last_data_ts < dead + (self.pk.proto.MIN_CHECK_INTERVAL * 2):
           conn.send_ping()
