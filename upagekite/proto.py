@@ -145,6 +145,8 @@ class uPageKiteDefaults:
   MIN_CHECK_INTERVAL = 16
   MAX_CHECK_INTERVAL = 900
   WATCHDOG_TIMEOUT = 5000
+  TUNNEL_TIMEOUT = 240
+  MAX_POST_BYTES = 64 * 1024
 
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
@@ -276,6 +278,10 @@ class uPageKiteDefaults:
   @classmethod
   def send_pong(cls, conn, pong):
     cls.send_chunk(conn, 'NOOP: 1\r\nPONG: %s\r\n\r\n!' % (pong,))
+
+  @classmethod
+  def send_ping(cls, conn):
+    cls.send_chunk(conn, 'NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
 
   @classmethod
   def read_http_header(cls, conn):

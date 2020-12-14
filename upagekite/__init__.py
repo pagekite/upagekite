@@ -104,8 +104,9 @@ class uPageKiteConn:
     self.pk = pk
     self.ip = pk.proto.addr_to_quad(relay_addr)
     self.fd, self.conn = pk.proto.connect(relay_addr, pk.kites, pk.secret)
-    self.pk.last_data_ts = time.time()
-    self.last_settime = time.time()
+    now = int(time.time())
+    self.last_data_ts = now
+    self.last_settime = now
     self.handlers = {}
 
   def __str__(self):
@@ -117,6 +118,9 @@ class uPageKiteConn:
     if eof:
       self.pk.proto.send_eof(self.conn, frame)
 
+  def send_ping(self):
+    self.pk.proto.send_ping(self.conn)
+
   def await_data(self, sid, handler, nbytes):
     self.handlers[sid] = handler
 
@@ -127,27 +131,13 @@ class uPageKiteConn:
   def process_io(self):
     try:
       frame = self.pk.proto.read_chunk(self.conn)
-      self.pk.last_data_ts = time.time()
+      self.last_data_ts = int(time.time())
       if frame:
         frame = Frame(frame)
 
         if frame.ping:
+          # Should never happen, as we send our own pings much more frequently
           self.pk.proto.send_pong(self.conn, frame.ping)
-
-          # Pings mean we are idle. Reap and close any idle streams/handlers.
-          for sid in self.handlers:
-            self.reply(Frame(headers={'SID': sid}), eof=True)
-          self.handlers = {}
-
-          # Pings mean we are idle. Use idle moments to synchronize our clock.
-          #
-          # FIXME: The ping usually includes the time at the relay, we should
-          #        just use that instead of NTP (if it looks plausible).
-          #
-          if (self.last_settime < time.time() - 12*3600 or
-              time.time() < 0x27640000):
-            _ntp_settime(self.pk.proto)
-            self.last_settime = time.time()
 
         elif frame.sid and frame.sid in self.handlers:
           try:
@@ -207,6 +197,20 @@ class uPageKiteConnPool:
         count += 1
       else:
         return False
+
+    dead = int(time.time()) - max(
+      self.pk.proto.MIN_CHECK_INTERVAL * 6,
+      self.pk.proto.TUNNEL_TIMEOUT)
+    for conn in self.conns.values():
+      if hasattr(conn, 'send_ping'):
+        if conn.last_data_ts < dead:
+          if self.pk.proto.info:
+            self.pk.proto.info(
+              'No PING response from <%s>, assuming it is down.' % (conn,))
+          return False
+        elif conn.last_data_ts < dead + (self.pk.proto.MIN_CHECK_INTERVAL * 2):
+          conn.send_ping()
+
     return count
 
 
@@ -214,7 +218,6 @@ class uPageKite:
   def __init__(self, kites, socks=[], proto=uPageKiteDefaults):
     self.proto = proto
     self.keep_running = True
-    self.last_data_ts = 0
     self.kites = kites
     self.socks = socks
     self.secret = proto.make_random_secret([(k.name, k.secret) for k in kites])
@@ -291,8 +294,7 @@ class uPageKite:
         timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
         gc.collect()
         if pool.process_io(int(timeout)) is False:
-          print('Eof tunnel?')
-          raise EofTunnelError()
+          raise EofTunnelError('process_io returned False')
 
       # Happy ending!
       return True
