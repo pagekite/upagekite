@@ -67,14 +67,13 @@ class CDNS:
       query = DNSQuery(data)
       if query.qdomain:
         if self.proto.info:
-          self.proto.info('CDNS: Responding to %s query from %s for %s'
+          self.proto.info('[dns] Responding to %s query from %s for %s'
             % (query.qtype, addr[0], query.qdomain))
         self.fd.sendto(query.response(self.ip), addr)
       elif self.proto.debug:
-        self.proto.debug('CDNS: Unparsed query from %s: %s' % (addr[0], data))
+        self.proto.debug('[dns] Unparsed query from %s: %s' % (addr[0], data))
 
     except Exception as e:
       print('Oops in CDNS: %s' % e)
-      pass
 
     return True
