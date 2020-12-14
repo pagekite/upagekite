@@ -13,9 +13,11 @@
     "webapp/webroot/index.py": "webroot/index.py",
     "webapp/webroot/post.py": "webroot/post.py",
     "webapp/webroot/reboot.py": "webroot/reboot.py",
-    "webapp/webroot/hello.html": "webroot/hello.html",
+    "webapp/webroot/reset.py": "webroot/reset.py",
+    "webapp/webroot/hello/index.html": "webroot/hello/index.html",
     "webapp/webroot/default.css": "webroot/default.css",
     "webapp/captive/setup/index.py": "captive/setup/index.py",
+    "webapp/captive/setup/setup.js": "captive/setup/setup.js",
     "webapp/captive/404.py": "captive/404.py"
   }
 }

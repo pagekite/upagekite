@@ -8,14 +8,14 @@ import machine
 
 send_http_response("""\
 <html><head>
-  <meta http-equiv="refresh" content="60; url=/">
+  <meta http-equiv="refresh" content="90; url=/">
   <link rel="icon" href="data:;base64,=">
   <style>
 %s
   </style>
   <title>upagekite: Rebooting!</title>
   <script>
-    var count = 60;
+    var count = 90;
     setInterval(function() {
       document.getElementById('t').innerHTML = (count-- + 's');
     }, 1000);
@@ -23,6 +23,7 @@ send_http_response("""\
 </head><body>
   <h1>Rebooting!</h1>
   <p>Rebooting in 2 seconds... page refresh in <span id=t>60s</span>.</p>
+  <p>[ <a href="/">back to top</a> ]</p>
 </body></html>
 """ % (open('bootstrap/webroot/default.css').read(),))
 

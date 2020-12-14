@@ -24,6 +24,7 @@ def respond():
     <input type="submit" value="Upload" name="submit">
    </form>
   </div>
+  <p>[ <a href="/">back to top</a> ]</p>
   <p>Request details: %s</p>
 </body></html>
 """) % (
