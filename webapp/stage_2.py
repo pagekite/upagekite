@@ -9,9 +9,9 @@
 # for more details.
 #
 import sys
+import time
 import upagekite
 import upagekite.httpd
-import time
 try:
   from boot import settings
 except:

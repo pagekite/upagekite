@@ -9,13 +9,13 @@
     "upagekite/web.py": true,
     "upagekite/web_mpfd.py": true,
     "upagekite/captive.py": true,
-    "examples/stage_2.py": "stage_2.py",
-    "examples/webroot/index.py": "webroot/index.py",
-    "examples/webroot/post.py": "webroot/post.py",
-    "examples/webroot/reboot.py": "webroot/reboot.py",
-    "examples/webroot/hello.html": "webroot/hello.html",
-    "examples/webroot/default.css": "webroot/default.css",
-    "examples/captive/setup/index.py": "captive/setup/index.py",
-    "examples/captive/404.py": "captive/404.py"
+    "webapp/stage_2.py": "stage_2.py",
+    "webapp/webroot/index.py": "webroot/index.py",
+    "webapp/webroot/post.py": "webroot/post.py",
+    "webapp/webroot/reboot.py": "webroot/reboot.py",
+    "webapp/webroot/hello.html": "webroot/hello.html",
+    "webapp/webroot/default.css": "webroot/default.css",
+    "webapp/captive/setup/index.py": "captive/setup/index.py",
+    "webapp/captive/404.py": "captive/404.py"
   }
 }

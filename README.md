@@ -4,14 +4,14 @@ This code makes it very easy to create static web sites or simple web
 services in MicroPython, and automatically punch through firewalls and
 NAT to make the server reachable from the wider Internet.
 
-This is a minimal PageKite implementation written for use with
-MicroPython on the ESP32. It is also tested on Ubuntu/Python 3.7 and
-Ubuntu's MicroPython snap. You will need access to a PageKite relay,
-such as those provided by [pagekite.net](https://pagekite.net/).
+This is a minimal HTTP server and PageKite implementation, written for
+use with MicroPython on the ESP32. It is also tested on Ubuntu/Python
+3.7 and Ubuntu's MicroPython snap. You will need access to a PageKite
+relay, such as those provided by [pagekite.net](https://pagekite.net/).
 
 
 **WARNING:** This code does not magically make the ESP32 suitable for
-hosting a high-volume website. Not does it "solve" security. Be careful!
+hosting a high-volume webapp. Not does it "solve" security. Be careful!
 
 **WARNING:** This is ALPHA QUALITY CODE. Get in touch and have a chat
 before using it for anything important! Here be dragons!
@@ -21,17 +21,20 @@ before using it for anything important! Here be dragons!
 
 1. Clone this repo: `git clone https://github.com/pagekite/upagekite/`
 2. Follow the **Bootstrapping Development** guide below
-3. Make your changes to [bootstrap_2.py](scripts/bootstrap_2.py)
-4. Create your website (see [examples/webroot](examples/webroot/))
+3. Make your changes to [stage_2.py](webapp/stage_2.py)
+4. Create your webapp (see [webapp/webroot](webapp/webroot/))
 5. Add new code files to "mirror" in [bootstrap.json](bootstrap.json)
 6. Iterate!
+
+Consult [webapp/README.md](webapp/README.md) for guidance on how to
+develop simple web apps or APIs using this framework.
 
 
 ## Project Status
 
 ### Works:
 
-* Exposing a hello-world website via. [pagekite.net](https://pagekite.net/)
+* Exposing a hello-world webapp via. [pagekite.net](https://pagekite.net/)
 * Network-based bootstrapping, load & run code from the web
 * Tested platforms and pythons:
    * MicroPython 1.13 on an ESP32-WROOM-32 DevKitC board
@@ -40,10 +43,8 @@ before using it for anything important! Here be dragons!
 
 ### Not working yet:
 
-* Dynamic DNS updates
 * Relay TLS certificate verification
 * Adaptive relay selection (ESP32 DNS lookups are too limited)
-* Large HTTP POST requests or file uploads
 * Proxying to an external (web)server
 
 See our [Github Issues](https://github.com/pagekite/upagekite/issues/) for
