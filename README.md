@@ -13,8 +13,9 @@ relay, such as those provided by [pagekite.net](https://pagekite.net/).
 **WARNING:** This code does not magically make the ESP32 suitable for
 hosting a high-volume webapp. Not does it "solve" security. Be careful!
 
-**WARNING:** This is ALPHA QUALITY CODE. Get in touch and have a chat
-before using it for anything important! Here be dragons!
+**WARNING:** This is ALPHA QUALITY CODE. [Get in
+touch](https://pagekite.net/support/chat/) and have a chat before using
+it for anything important! Here be dragons!
 
 
 ## Hacking uHowTo
@@ -228,7 +229,7 @@ unless full sources are provided to end-users, along with tools and
 documentation necessary for them to make modification and changes.
 
 However, commercial licenses are available for sale for a reasonable
-fee. Get in touch!
+fee. [Get in touch!](https://pagekite.net/support/chat/)
 
 ---
 
