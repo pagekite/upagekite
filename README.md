@@ -123,8 +123,9 @@ Now, proceed to the ESP32 or localhost setup sections below.
 
 ### Bootstrap setup on the ESP32
 
-Follow these steps to configure your ESP32 for uPageKite development
-(all code-blocks run in the MicroPython REPL):
+After setting up your bootstrap web server (see above), you can follow
+the next steps to configure your ESP32 for uPageKite development. All
+code-blocks run in the MicroPython REPL:
 
 1. [Install MicroPython on your ESP32](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html).
    The 2020-09-02 v1.13 build is known to work. Connect to the serial
@@ -180,8 +181,11 @@ import webrepl_setup
 execfile('bootstrap.py')
 ```
 
-9. If that successfully connects to your wifi and loads the
-   second-stage loader, make it permanent with:
+That should connect to your wifi and loads the second-stage loader,
+running uPageKite and your code. If it works you can press CTRL+C to
+return to the Python REPL and proceed...
+
+9. Replace the MicroPython boot script with `bootstrap.py`:
 
 ```
 os.remove('boot.py')
