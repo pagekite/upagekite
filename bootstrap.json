@@ -17,7 +17,6 @@
     "webapp/webroot/hello/index.html": "webroot/hello/index.html",
     "webapp/webroot/default.css": "webroot/default.css",
     "webapp/captive/setup/index.py": "captive/setup/index.py",
-    "webapp/captive/setup/setup.js": "captive/setup/setup.js",
     "webapp/captive/404.py": "captive/404.py"
   }
 }

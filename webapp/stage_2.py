@@ -14,7 +14,7 @@ except:
     settings = {}
 
 
-print("=2= Stage two (sample) loaded successfully!")
+print("=2= Stage two compiled, here we go!")
 
 
 if sys.platform == 'linux':
@@ -34,6 +34,14 @@ class MyProto(upagekite.uPageKiteDefaults):
   debug = upagekite.uPageKiteDefaults.log
   info  = upagekite.uPageKiteDefaults.log
   error = upagekite.uPageKiteDefaults.log
+
+
+class MyPageKite(upagekite.uPageKite):
+  def tick(self, *args, **kwargs):
+    # Add a decoration to the tick log-line, run the standard tick.
+    #kwargs['my'] = 'demo'
+    upagekite.uPageKite.tick(self, *args, **kwargs)
+    # More periodic jobs here?
 
 
 def captive_portal(env, httpd):
@@ -94,7 +102,7 @@ def get_upk():
   print()
   time.sleep(2)
 
-  upk = upagekite.uPageKite(env['kites'], socks=env['socks'], proto=MyProto)
+  upk = MyPageKite(env['kites'], socks=env['socks'], proto=MyProto)
   env['upagekite'] = upk  # Expose to page logic
   return upk
 
