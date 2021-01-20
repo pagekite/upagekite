@@ -12,7 +12,7 @@ import gc
 import time
 import select
 
-from .proto import socket, Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import socket, sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
 
 
 try:
@@ -55,6 +55,7 @@ class LocalHTTPKite(Kite):
     if data:
       self.sock.setblocking(True)
       self.client.write(bytes(data, 'latin-1'))
+      sleep_ms(int(len(data) * self.proto.MS_DELAY_PER_BYTE))
     if eof:
       self.client.close()
       self.client = None

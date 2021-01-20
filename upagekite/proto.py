@@ -26,8 +26,10 @@ from hashlib import sha1
 from struct import unpack
 
 try:
-  from time import ticks_ms
+  from time import ticks_ms, sleep_ms
 except ImportError:
+  def sleep_ms(ms):
+    time.sleep(ms / 1000.0)
   def ticks_ms():
     return int(time.time() * 1000)
 
@@ -147,6 +149,7 @@ class uPageKiteDefaults:
   WATCHDOG_TIMEOUT = 5000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
+  MS_DELAY_PER_BYTE = 0.25
 
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
@@ -262,6 +265,7 @@ class uPageKiteDefaults:
     if cls.trace:
       cls.trace('>> %s' % data)
     conn.write(data)
+    sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
   @classmethod
   def send_chunk(cls, conn, data):
