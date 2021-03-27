@@ -30,17 +30,17 @@ class MyProto(upagekite.uPageKiteDefaults):
   # Disable watchdog
   WATCHDOG_TIMEOUT = 45000
 
-  #trace = upagekite.uPageKiteDefaults.log
+  trace = upagekite.uPageKiteDefaults.log
   debug = upagekite.uPageKiteDefaults.log
   info  = upagekite.uPageKiteDefaults.log
   error = upagekite.uPageKiteDefaults.log
 
 
 class MyPageKite(upagekite.uPageKite):
-  def tick(self, *args, **kwargs):
+  async def tick(self, *args, **kwargs):
     # Add a decoration to the tick log-line, run the standard tick.
     #kwargs['my'] = 'demo'
-    upagekite.uPageKite.tick(self, *args, **kwargs)
+    await upagekite.uPageKite.tick(self, *args, **kwargs)
     # More periodic jobs here?
 
 
@@ -107,8 +107,16 @@ def get_upk():
   return upk
 
 
+async def ticker():
+  while True:
+    await asyncio.sleep(10)
+    print('Asyncio tick!')
+
+
 if __name__ == "__main__":
   import gc
+  from upagekite.proto import asyncio
+  asyncio.get_event_loop().create_task(ticker())
   upk = get_upk()
   del get_upk
   del captive_portal

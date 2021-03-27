@@ -52,7 +52,7 @@ class ParseMPFD(ParseNull):
       if self.proto.trace:
         self.proto.trace('<<%s' % line)
 
-      if (line[:2] == b'--') and line[2:].startswith(self.attrs['boundary']):
+      if (line[:2] == b'--') and line[2:].startswith(bytes(self.attrs['boundary'], 'latin-1')):
         if 'fd' in self.payload:
           self.payload['bytes'] -= 2
           self.payload['fd'].close()
@@ -68,7 +68,7 @@ class ParseMPFD(ParseNull):
         if line in (b'\n', b'\r\n'):
           self.in_header = False
 
-        elif line.startswith('Content-Disposition:'):
+        elif line.startswith(b'Content-Disposition:'):
           hname, hval = str(line, 'utf-8').split(':', 1)
           hval, hattrs = parse_hdr(hval.strip())
           self.varname = hattrs['name']

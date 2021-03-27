@@ -61,7 +61,7 @@ class CDNS:
     self.fd.setblocking(False)
     self.fd.bind(socket.getaddrinfo('0.0.0.0', port)[0][-1])
 
-  def process_io(self):
+  async def process_io(self):
     try:
       data, addr = self.fd.recvfrom(4096)
       query = DNSQuery(data)

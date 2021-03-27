@@ -26,10 +26,13 @@ from hashlib import sha1
 from struct import unpack
 
 try:
-  from time import ticks_ms, sleep_ms
+    import uasyncio as asyncio
+except ImpotError:
+    import asyncio
+
+try:
+  from time import ticks_ms
 except ImportError:
-  def sleep_ms(ms):
-    time.sleep(ms / 1000.0)
   def ticks_ms():
     return int(time.time() * 1000)
 
@@ -67,7 +70,7 @@ except ImportError:
 try:
   import usocket as socket
   IOError = OSError
-  def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
+  async def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
     if proto.trace:
       proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
@@ -80,7 +83,7 @@ try:
     return (s, s)
 except ImportError:
   import socket
-  def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
+  async def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
     if proto.trace:
       proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
@@ -90,6 +93,12 @@ except ImportError:
     if ssl_wrap:
       s = ssl.wrap_socket(s)
     return (s, s.makefile("rwb", 0))
+
+try:
+    from asyncio import sleep_ms
+except ImportError:
+    async def sleep_ms(ms):
+        await asyncio.sleep(ms/1000.0)
 
 
 class RejectedError(ValueError):
@@ -183,7 +192,7 @@ class uPageKiteDefaults:
     return rs
 
   @classmethod
-  def http_get(cls, proto, http_host, path, addr=None, atonce=1024, maxread=8196):
+  async def http_get(cls, proto, http_host, path, addr=None, atonce=1024, maxread=8196):
     if addr is None:
       addr = http_host
     if hasattr(addr, 'split'):
@@ -195,8 +204,8 @@ class uPageKiteDefaults:
       addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
     t0 = ticks_ms()
-    cfd, conn = sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
-    cls.send_raw(conn,
+    cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
+    await cls.send(conn,
       'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host))
 
     t1 = ticks_ms()
@@ -224,14 +233,14 @@ class uPageKiteDefaults:
       t1-t0, t2-t1, body)
 
   @classmethod
-  def get_kite_addrinfo(cls, kite):
+  async def get_kite_addrinfo(cls, kite):
     try:
       return socket.getaddrinfo(kite.name, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       return []
 
   @classmethod
-  def get_relays_addrinfo(cls):
+  async def get_relays_addrinfo(cls):
     try:
       if cls.FE_NAME:
         return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
@@ -240,9 +249,9 @@ class uPageKiteDefaults:
     return []
 
   @classmethod
-  def ping_relay(cls, relay_addr, bias=1.0):
+  async def ping_relay(cls, relay_addr, bias=1.0):
     try:
-      l1, hdrs, t1, t2, body = cls.http_get(
+      l1, hdrs, t1, t2, body = await cls.http_get(
         'http', 'ping.pagekite', '/ping', relay_addr,
         atonce=250)
 
@@ -260,35 +269,42 @@ class uPageKiteDefaults:
       return 99999
 
   @classmethod
-  def send_raw(cls, conn, data):
+  def sync_send(cls, conn, data):
+    data = bytes(data, 'latin-1')
+    if cls.trace:
+      cls.trace(']> %s' % data)
+    conn.write(data)
+
+  @classmethod
+  async def send(cls, conn, data):
     data = bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
     conn.write(data)
-    sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
+    await sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
   @classmethod
-  def send_chunk(cls, conn, data):
-    cls.send_raw(conn, '%x\r\n%s' % (len(data), data))
+  def fmt_chunk(cls, data):
+    return '%x\r\n%s' % (len(data), data)
 
   @classmethod
-  def send_data(cls, conn, frame, data):
-    cls.send_chunk(conn, 'SID: %s\r\n\r\n%s' % (frame.sid, data))
+  def fmt_data(cls, frame, data):
+    return cls.fmt_chunk('SID: %s\r\n\r\n%s' % (frame.sid, data))
 
   @classmethod
-  def send_eof(cls, conn, frame):
-    cls.send_chunk(conn, 'SID: %s\r\nEOF: 1WR\r\n\r\n' % (frame.sid,))
+  def fmt_eof(cls, frame):
+    return cls.fmt_chunk('SID: %s\r\nEOF: 1WR\r\n\r\n' % (frame.sid,))
 
   @classmethod
-  def send_pong(cls, conn, pong):
-    cls.send_chunk(conn, 'NOOP: 1\r\nPONG: %s\r\n\r\n!' % (pong,))
+  def fmt_pong(cls, pong):
+    return cls.fmt_chunk('NOOP: 1\r\nPONG: %s\r\n\r\n!' % (pong,))
 
   @classmethod
-  def send_ping(cls, conn):
-    cls.send_chunk(conn, 'NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
+  def fmt_ping(cls, conn):
+    return cls.fmt_chunk('NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
 
   @classmethod
-  def read_http_header(cls, conn):
+  async def read_http_header(cls, conn):
     header = bytes()
     read_bytes = 1
     while header[-4:] != b'\r\n\r\n':
@@ -301,7 +317,7 @@ class uPageKiteDefaults:
     return header
 
   @classmethod
-  def read_chunk(cls, conn):
+  async def read_chunk(cls, conn):
     hdr = b''
     try:
       while not hdr.endswith(b'\r\n'):
@@ -371,7 +387,7 @@ class uPageKiteDefaults:
     return ok, needsign, rejected
 
   @classmethod
-  def connect(cls, relay_addr, kites, global_secret):
+  async def connect(cls, relay_addr, kites, global_secret):
     if cls.debug:
       cls.debug('Flying %s via %s' % (
         ', '.join(str(k) for k in kites), relay_addr))
@@ -380,8 +396,8 @@ class uPageKiteDefaults:
       kite.challenge = ''
 
     # Connect, get fresh challenges
-    cfd, conn = sock_connect_stream(cls, relay_addr, ssl_wrap=cls.WITH_SSL)
-    cls.send_raw(conn, (
+    cfd, conn = await sock_connect_stream(cls, relay_addr, ssl_wrap=cls.WITH_SSL)
+    await cls.send(conn, (
         'CONNECT PageKite:1 HTTP/1.0\r\n'
         'X-PageKite-Features: AddKites\r\n'
         'X-PageKite-Version: %s\r\n'
@@ -391,19 +407,19 @@ class uPageKiteDefaults:
         cls.x_pagekite(relay_addr, kites, global_secret)))
 
     # Make sense of it...
-    challenge = cls.read_http_header(conn)
+    challenge = await cls.read_http_header(conn)
     ok, needsign, rejected = cls.parse_challenge(challenge, kites)
     if rejected:
       conn.close()
       raise RejectedError(', '.join(rejected))
 
     if needsign:
-      cls.send_chunk(conn, (
+      await cls.send(conn, cls.fmt_chunk((
           'NOOP: 1\r\n'
           '%s\r\n'
         ) % (
-          cls.x_pagekite(relay_addr, needsign, global_secret)))
-      challenge = cls.read_chunk(conn)
+          cls.x_pagekite(relay_addr, needsign, global_secret))))
+      challenge = await cls.read_chunk(conn)
       ok2, needsign, rejected = cls.parse_challenge(challenge, kites)
       ok += ok2
       if rejected or needsign:
@@ -419,13 +435,13 @@ class uPageKiteDefaults:
     return cfd, conn
 
   @classmethod
-  def update_dns(cls, relay_ip, kites):
+  async def update_dns(cls, relay_ip, kites):
     proto, host, path_fmt = cls.DDNS_URL
     errors = 0
     for kite in kites:
       try:
         payload = '%s:%s' % (kite.name, relay_ip)
-        l1, hdrs, t1, t2, body = cls.http_get(
+        l1, hdrs, t1, t2, body = await cls.http_get(
           proto, host, path_fmt % {
             'domain': kite.name,
             'sign': cls.sign(kite.secret, payload, length=100),

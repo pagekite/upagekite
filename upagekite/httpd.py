@@ -83,14 +83,14 @@ class HTTPD:
         code, sent,
         headers.get('User-Agent', headers.get('user-agent', '-'))))
 
-  def _err(self, code, msg, method, path, conn, frame, headers={}):
+  async def _err(self, code, msg, method, path, conn, frame, headers={}):
     self.log_request(frame, method, path, code, headers=headers)
-    conn.reply(frame, self.http_response(code, msg, 'text/plain')+msg+'\n')
+    await conn.reply(frame, self.http_response(code, msg, 'text/plain')+msg+'\n')
 
   def _mimetype(self, fn):
     return self.MIMETYPES.get(fn.rsplit('.', 1)[-1], self.MIMETYPES['_'])
 
-  def handle_http_request(self, kite, conn, frame):
+  async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
     #        long running requests. This is just one-shot for now.
     method = path = '-'
@@ -111,7 +111,7 @@ class HTTPD:
         if self.proto.PARSE_HTTP_HEADERS.match(l))
       filename = self.webroot + path
     except Exception as e:
-      return self._err(400, 'Invalid request', method, path, conn, frame)
+      return await self._err(400, 'Invalid request', method, path, conn, frame)
 
     try:
       ls = [l[0] for l in ilistdir(filename)]
@@ -129,16 +129,17 @@ class HTTPD:
         filename = self.webroot + '/404.py'
         fd = open(filename, 'r')
       except:
-        return self._err(404, 'Not Found', method, path, conn, frame, headers)
+        return await self._err(404, 'Not Found', method, path, conn, frame, headers)
 
     try:
       if filename.endswith('.py'): 
+        replies = []
         def r(body='', mimetype='text/html; charset=utf-8',
               code=200, msg='OK', ttl=None, eof=True, hdrs={}):
           rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
           if method != 'HEAD':
             rdata += body
-          conn.reply(frame, rdata, eof=eof)
+          conn.sync_reply(frame, rdata, eof=eof)
           self.log_request(frame, method, path, code, len(rdata), headers)
         headers['_method'] = method
         headers['_path'] = path
@@ -153,19 +154,19 @@ class HTTPD:
       else:
         mimetype = self._mimetype(filename)
         resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
-        conn.reply(frame, resp, eof=False)
+        await conn.reply(frame, resp, eof=False)
         sent = len(resp)
         while method != 'HEAD':
           data = fd.read(4096)
           if data:
             sent += len(data)
-            conn.reply(frame, data, eof=False)
+            await conn.reply(frame, data, eof=False)
           else:
-            conn.reply(frame, eof=True)
+            await conn.reply(frame, eof=True)
             break
         self.log_request(frame, method, path, 200, sent, headers)
     except Exception as e:
       print('Exception: %s' % e)
-      return self._err(500, 'Server Error', method, path, conn, frame, headers)
+      return await self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:
       fd.close()
