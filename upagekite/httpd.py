@@ -13,7 +13,7 @@ import sys
 import time
 import json
 
-from .proto import ilistdir
+from .proto import ilistdir, sleep_ms
 
 
 class HTTPD:
@@ -113,6 +113,7 @@ class HTTPD:
     except Exception as e:
       return await self._err(400, 'Invalid request', method, path, conn, frame)
 
+    await sleep_ms(1)
     try:
       ls = [l[0] for l in ilistdir(filename)]
       if 'index.py' in ls:
@@ -150,6 +151,7 @@ class HTTPD:
           'kite': kite, 'conn': conn, 'frame': frame,
           'http_headers': headers}
         req_env.update(self.base_env)
+        await sleep_ms(25)
         exec(fd.read(), req_env)
       else:
         mimetype = self._mimetype(filename)

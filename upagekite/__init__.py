@@ -26,7 +26,7 @@ def _ntp_settime(proto):
       if proto.info:
         proto.info('Attempting to set the time using NTP...')
       settime()
-    except:
+    except Exception as e:
       if proto.error:
         proto.error('Failed to set NTP time: %s' % e)
 
@@ -60,6 +60,7 @@ class LocalHTTPKite(Kite):
       self.client = None
 
   async def reply(self, frame, data=None, eof=True):
+    await sleep_ms(1)
     if data:
       self.sock.setblocking(True)
       self.client.write(bytes(data, 'latin-1'))
@@ -71,6 +72,7 @@ class LocalHTTPKite(Kite):
   async def await_data(self, sid, handler, nbytes):
     self.sock.setblocking(True)
     while nbytes > 0:
+      await sleep_ms(1)
       more = self.client.read(min(2048, nbytes))
       await handler(Frame(payload=more))
       if more:
@@ -91,9 +93,11 @@ class LocalHTTPKite(Kite):
       else:
         self.sock = self.client
 
+      await sleep_ms(1)
       req = self.client.read(1)
       self.sock.setblocking(False)
       req += self.client.read(4095)
+      await sleep_ms(1)
 
       await self.handler(self, self, Frame(payload=req, headers={
         'Host': '0.0.0.0',
@@ -210,13 +214,14 @@ class uPageKiteConnPool:
 
   async def async_poll(self, timeout):
     while timeout > 0:
-      events = self.poll.poll(min(50, timeout))
+      if timeout > 50:
+        await sleep_ms(min(25, timeout))
+        timeout -= min(25, timeout)
+      events = self.poll.poll(min(24, timeout))
+      await sleep_ms(1)
       if events:
         return events
-      timeout -= 50
-      if timeout > 10:
-        await sleep_ms(min(50, timeout))
-        timeout -= min(50, timeout)
+      timeout -= 25
     return []
 
   async def process_io(self, timeout):
@@ -265,6 +270,8 @@ class uPageKite:
 
   async def choose_relays(self, preferred=[]):
     gc.collect()
+    await sleep_ms(1)
+
     relays = []
     if len(self.kites) == 0:
       return relays
@@ -300,6 +307,7 @@ class uPageKite:
     conns = []
     self.want_dns_update = [0]
     for relay in relays:
+      await sleep_ms(1)
       try:
         conns.append(await uPageKiteConn(self).connect(relay))
       except KeyboardInterrupt:
@@ -325,6 +333,7 @@ class uPageKite:
       pass
 
     gc.collect()
+    await sleep_ms(1)
     try:
       pool = uPageKiteConnPool(conns, self)
       while pool.conns and time.time() < deadline:
@@ -333,6 +342,7 @@ class uPageKite:
 
         timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
         gc.collect()
+        await sleep_ms(1)
         if await pool.process_io(int(timeout)) is False:
           raise EofTunnelError('process_io returned False')
 

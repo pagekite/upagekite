@@ -27,7 +27,7 @@ from struct import unpack
 
 try:
     import uasyncio as asyncio
-except ImpotError:
+except ImportError:
     import asyncio
 
 try:
@@ -75,11 +75,15 @@ try:
       proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
+    await sleep_ms(1)
     s.connect(addr)
     s.settimeout(timeouts[1])
+    await sleep_ms(1)
     if ssl_wrap:
       gc.collect()
+      await sleep_ms(5)
       return (s, ssl.wrap_socket(s))
+    await sleep_ms(1)
     return (s, s)
 except ImportError:
   import socket
@@ -88,10 +92,13 @@ except ImportError:
       proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
+    await sleep_ms(1)
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
+      await sleep_ms(5)
       s = ssl.wrap_socket(s)
+    await sleep_ms(1)
     return (s, s.makefile("rwb", 0))
 
 try:
@@ -201,8 +208,10 @@ class uPageKiteDefaults:
       else:
         port = 443 if (proto == 'https') else 80
         hostname = addr
+      await sleep_ms(1)
       addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
+    await sleep_ms(5)
     t0 = ticks_ms()
     cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
     await cls.send(conn,
@@ -212,6 +221,7 @@ class uPageKiteDefaults:
     response = b''
     while len(response) < maxread:
       try:
+        await sleep_ms(1)
         data = conn.read(atonce)
         response += data
       except:
@@ -226,7 +236,7 @@ class uPageKiteDefaults:
     except ValueError:
       header = response
       body = ''
-    header_lines = str(header, 'latin-1').splitlines()
+    header_lines = (str(header, 'latin-1') or '\n').splitlines()
     return (
       header_lines[0],
       dict(l.split(': ', 1) for l in header_lines[1:]),
@@ -235,6 +245,7 @@ class uPageKiteDefaults:
   @classmethod
   async def get_kite_addrinfo(cls, kite):
     try:
+      await sleep_ms(5)
       return socket.getaddrinfo(kite.name, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       return []
@@ -243,6 +254,7 @@ class uPageKiteDefaults:
   async def get_relays_addrinfo(cls):
     try:
       if cls.FE_NAME:
+        await sleep_ms(5)
         return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       pass
@@ -280,6 +292,7 @@ class uPageKiteDefaults:
     data = bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
+    await sleep_ms(1)
     conn.write(data)
     await sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
@@ -312,6 +325,7 @@ class uPageKiteDefaults:
       if byte in (b'', None):
         raise EofTunnelError()
       header += byte
+    await sleep_ms(1)
     if cls.trace:
       cls.trace('<< %s' % header)
     return header
@@ -325,8 +339,12 @@ class uPageKiteDefaults:
         if byte in (b'', None):
           raise EofTunnelError()
         hdr += byte
+
+      await sleep_ms(1)
       chunk_len = int(str(hdr, 'latin-1').strip(), 16)
       payload = conn.read(chunk_len)
+      await sleep_ms(1)
+
       # FIXME: We might need a loop here, in case of short reads.
       #        And for self preservation, a possibly discard mode if the
       #        frame is too big for us to handle.
