@@ -17,6 +17,16 @@ import gc
 gc.collect()
 
 
+def say_something(what, foobar='okay'):
+  print('Postponed %s (%s)' % (what, foobar))
+
+# This illustrates how to queue up an action to run after we have
+# returned a result to the user; this improves response times, but
+# also unblocks the main event loop in case other tasks have become
+# (over)due.
+postpone_action(say_something, 'hello world', foobar='hooray')
+
+
 # Most of the arguments could be omitted, they have sensible defaults.
 send_http_response(
   ttl=120, code=200, mimetype='text/html; charset=utf-8',

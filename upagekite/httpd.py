@@ -132,6 +132,8 @@ class HTTPD:
       except:
         return await self._err(404, 'Not Found', method, path, conn, frame, headers)
 
+    postponed = []
+    await sleep_ms(1)
     try:
       if filename.endswith('.py'): 
         replies = []
@@ -142,13 +144,16 @@ class HTTPD:
             rdata += body
           conn.sync_reply(frame, rdata, eof=eof)
           self.log_request(frame, method, path, code, len(rdata), headers)
+        def p(func, *args, **kwargs):
+          postponed.append((func, args, kwargs))
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
         req_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json,
-          'httpd': self, 'send_http_response': r,
-          'kite': kite, 'conn': conn, 'frame': frame,
+          'httpd': self, 'kite': kite, 'conn': conn, 'frame': frame,
+          'send_http_response': r,
+          'postpone_action': p,
           'http_headers': headers}
         req_env.update(self.base_env)
         await sleep_ms(25)
@@ -172,3 +177,7 @@ class HTTPD:
       return await self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:
       fd.close()
+
+    for f, a, kw in postponed:
+      await sleep_ms(1)
+      f(*a, **kw)

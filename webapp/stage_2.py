@@ -107,16 +107,25 @@ def get_upk():
   return upk
 
 
-async def ticker():
+from upagekite.proto import sleep_ms, ticks_ms
+async def timer_latency_test():
+  first_tick = ticks_ms() + 100
+  counter = 0
   while True:
-    await asyncio.sleep(10)
-    print('Asyncio tick!')
+    next_tick = first_tick + (counter*100)
+    await sleep_ms(max(1, next_tick - ticks_ms()))
+    now = ticks_ms()
+    if (now - next_tick > 25) or (counter % 10 == 9):
+      print('Tick delayed by: %sms' % (now - next_tick))
+    while next_tick <= now:
+      counter += max(1, (now - next_tick) // 100)
+      next_tick = first_tick + (counter*100)
 
 
 if __name__ == "__main__":
   import gc
   from upagekite.proto import asyncio
-  asyncio.get_event_loop().create_task(ticker())
+  asyncio.get_event_loop().create_task(timer_latency_test())
   upk = get_upk()
   del get_upk
   del captive_portal
