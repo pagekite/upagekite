@@ -60,7 +60,7 @@ def bootstrap_1():
   except:
     HWID = 'unknown'
 
-  def http_get(proto, host, path):
+  def http_get(proto, host, path, fd=None):
     client = socket.socket()
     if ':' in host:
       hostname, port = host.split(':')
@@ -78,21 +78,34 @@ def bootstrap_1():
     client.write(bytes(
       'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host),
       'latin-1'))
-    response = b''
-    while len(response) < 64000:
-        data = client.read(4096)
-        if data:
-            response += data
-        else:
-            break
-    client.close()
-    header, body = response.split(b'\r\n\r\n')
+
+    body = client.read(4096)
+    size = len(body)
+    header, body = body.split(b'\r\n\r\n', 1)
     header_lines = str(header, 'latin-1').splitlines()
+    if fd:
+        fd.write(body)
+        while True:
+            body = client.read(4096)
+            if body:
+                size += len(body)
+                fd.write(body)
+            else:
+                break
+    else:
+        while len(body) < 64000:
+            data = client.read(4096)
+            if data:
+                body += data
+            else:
+                break
+
+    client.close()
     return (
       proto, host, path,
       header_lines[0],
       dict(l.split(': ', 1) for l in header_lines[1:]),
-      body)
+      (size if fd else body))
 
   def make_parent(fn):
     parts = fn.split('/')
@@ -144,16 +157,18 @@ def bootstrap_1():
     for src, dest in bootstrap.get('mirror', {}).items():
       if dest in (True, 1):
         dest = src
-      src_path = bootstrap['base_url_path'] + '/' + src
-      _, _, _, result, _, data = http_get(proto, host, src_path)
-      if ' 200 ' not in result:
-        print('!!! ABORTING  %s: %s' % (src_path, result))
-        return
-
       make_parent('bootstrap.tmp/' + dest)
       with open('bootstrap.tmp/' + dest, 'wb') as fd:
-        fd.write(data)
-      print(' *  %s: copied %d bytes => %s' % (src, len(data), dest))
+        src_path = bootstrap['base_url_path'] + '/' + src
+        try:
+          _, _, _, result, _, size = http_get(proto, host, src_path, fd)
+        except Exception as e:
+          result = ('Exception(%s)' % e)
+        if ' 200 ' not in result:
+          print('!!! ABORTING  %s: %s' % (src_path, result))
+          return
+
+        print(' *  %s: copied %d bytes => %s' % (src, size, dest))
 
     # FIXME: Run self-tests before switching? Can MicroPython do that?
 
