@@ -102,7 +102,7 @@ except ImportError:
     return (s, s.makefile("rwb", 0))
 
 try:
-    from asyncio import sleep_ms
+    from uasyncio import sleep_ms
 except ImportError:
     async def sleep_ms(ms):
         await asyncio.sleep(ms/1000.0)
