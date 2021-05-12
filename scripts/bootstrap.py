@@ -194,7 +194,7 @@ def bootstrap_1():
         time.sleep(1)
         wlan.active(True)
         wlan.connect(settings['ssid'], settings['key'])
-        for i in range(0, 30):
+        for i in range(0, 60):
           if wlan.isconnected():
             break
           time.sleep(1)
