@@ -1,4 +1,4 @@
-# Copyright (C) 2020, The Beanstalks Project ehf. and Bjarni R. Einarsson.
+# Copyright (C) 2021, The Beanstalks Project ehf. and Bjarni R. Einarsson.
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -16,22 +16,22 @@ import json
 
 
 try:
-  with open('bootstrap-config.json', 'rb') as fd:
-    settings = json.loads(fd.read())
-except:
-  settings = {}
-
-
-try:
   if execfile: pass
 except NameError:
   def execfile(fn):
     exec(open(fn, 'r').read(), globals())
 
 
+def load_settings():
+  try:
+    with open('bootstrap-config.json', 'rb') as fd:
+      return json.loads(fd.read())
+  except:
+    return {}
+
+
 def setting(key, val=None):
-  with open('bootstrap-config.json', 'rb') as fd:
-    settings = json.loads(fd.read())
+  settings = load_settings()
   if val is not None:
     settings[key] = val
     with open('bootstrap-config.json', 'wb') as fd:
@@ -40,13 +40,13 @@ def setting(key, val=None):
 
 
 def bootstrap_2():
-  print("=1= Chaining execution to bootstrap/stage_2 ...")
-  if 'bootstrap' not in sys.path:
-    sys.path.append('bootstrap')
-  execfile('bootstrap/stage_2.py')
+  print("=1= Chaining execution to bootstrap_live/stage_2 ...")
+  if '/bootstrap_live' not in sys.path:
+    sys.path.append('/bootstrap_live')
+  return execfile('/bootstrap_live/stage_2.py')
 
 
-def bootstrap_1():
+def bootstrap_1(settings):
   try:
     from os import ilistdir
   except ImportError:
@@ -173,11 +173,11 @@ def bootstrap_1():
     # FIXME: Run self-tests before switching? Can MicroPython do that?
 
     try:
-      rm_rf('bootstrap.old')
-      os.rename('bootstrap', 'bootstrap.old')
+      rm_rf('bootstrap_old')
+      os.rename('bootstrap_live', 'bootstrap_old')
     except:
       pass
-    os.rename('bootstrap.tmp', 'bootstrap')
+    os.rename('bootstrap.tmp', 'bootstrap_live')
 
     with open('bootstrap.json', 'wb') as fd:
       fd.write(bootstrap_json)
@@ -208,9 +208,17 @@ def bootstrap_1():
     print("!!! Network-based code update failed: %s" % e)
 
 
+def run():
+  bootstrap_1(load_settings())
+  gc.collect()
+  bootstrap_2()
+
+
 if __name__ == "__main__":
-  bootstrap_1()
+  del run
   del setting
+  bootstrap_1(load_settings())
+  del load_settings
   del bootstrap_1
   gc.collect()
   bootstrap_2()
