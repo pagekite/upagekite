@@ -16,6 +16,25 @@ import json
 from .proto import ilistdir, sleep_ms
 
 
+_HANDLERS_SYNC = {}
+_HANDLERS_ASYNC = {}
+
+
+# Decorators for registering functions as URL handlers
+def url(path):
+    def decorate(func):
+        _HANDLERS_SYNC[path] = func
+        return func
+    return decorate
+
+
+def async_url(path):
+    def decorate(func):
+        _HANDLERS_ASYNC[path] = func
+        return func
+    return decorate
+
+
 class HTTPD:
   METHODS = (
     'GET',
@@ -109,33 +128,39 @@ class HTTPD:
       headers = dict(
         l[:128].split(': ', 1) for l in headers.splitlines()
         if self.proto.PARSE_HTTP_HEADERS.match(l))
-      filename = self.webroot + path
     except Exception as e:
       return await self._err(400, 'Invalid request', method, path, conn, frame)
 
+    func = _HANDLERS_SYNC.get(path)
+    func_async = _HANDLERS_ASYNC.get(path)
+    filename = self.webroot + path
+
     await sleep_ms(1)
-    try:
-      ls = [l[0] for l in ilistdir(filename)]
-      if 'index.py' in ls:
-        filename = filename + '/index.py'
-      elif 'index.html' in ls:
-        filename = filename + '/index.html'
-      del ls
-    except:
-      pass
-    try:
-      fd = open(filename, 'r')
-    except:
+    if func is None and func_async is None:
       try:
-        filename = self.webroot + '/404.py'
+        ls = [l[0] for l in ilistdir(filename)]
+        if 'index.py' in ls:
+          filename = filename + '/index.py'
+        elif 'index.html' in ls:
+          filename = filename + '/index.html'
+        del ls
+      except:
+        pass
+      try:
         fd = open(filename, 'r')
       except:
-        return await self._err(404, 'Not Found', method, path, conn, frame, headers)
+        try:
+          filename = self.webroot + '/404.py'
+          fd = open(filename, 'r')
+        except:
+          return await self._err(404, 'Not Found', method, path, conn, frame, headers)
+    else:
+      fd = None
 
     postponed = []
     await sleep_ms(1)
     try:
-      if filename.endswith('.py'): 
+      if func or func_async or filename.endswith('.py'):
         replies = []
         def r(body='', mimetype='text/html; charset=utf-8',
               code=200, msg='OK', ttl=None, eof=True, hdrs={}):
@@ -156,8 +181,18 @@ class HTTPD:
           'postpone_action': p,
           'http_headers': headers}
         req_env.update(self.base_env)
-        await sleep_ms(25)
-        exec(fd.read(), req_env)
+        if fd:
+          await sleep_ms(25)
+          exec(fd.read(), req_env)
+        else:
+          if func:
+            await sleep_ms(1)
+            result = func(req_env)
+          else:
+            result = await func_async(req_env)
+          if result:
+            r(**result)
+
       else:
         mimetype = self._mimetype(filename)
         resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
@@ -176,7 +211,8 @@ class HTTPD:
       print('Exception: %s' % e)
       return await self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:
-      fd.close()
+      if fd is not None:
+        fd.close()
 
     for f, a, kw in postponed:
       await sleep_ms(1)

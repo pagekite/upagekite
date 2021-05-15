@@ -5,6 +5,7 @@ import sys
 import time
 import upagekite
 import upagekite.httpd
+from upagekite.proto import sleep_ms, ticks_ms
 try:
   from boot import settings
 except:
@@ -24,6 +25,15 @@ else:
   HTTPD_PORT = 80
   CDNS_PORT = 53
   CAPTIVE_IP = '192.168.4.1'
+
+
+@upagekite.httpd.async_url('/builtin')
+async def slash_builtin(env):
+  await sleep_ms(1)
+  return {
+    'mimetype': 'text/plain',
+    'ttl': 60,
+    'body': 'This is a built-in Python web endpoint\n'}
 
 
 class MyProto(upagekite.uPageKiteDefaults):
