@@ -21,6 +21,12 @@ except NameError:
   def execfile(fn):
     exec(open(fn, 'r').read(), globals())
 
+try:
+  from os import ilistdir
+except ImportError:
+  def ilistdir(path):
+    return ((d, None, None) for d in os.listdir(path))
+
 
 def load_settings():
   try:
@@ -39,6 +45,67 @@ def setting(key, val=None):
   return settings[key]
 
 
+def rm_rf(fn):
+  try:
+    for sub in ilistdir(fn):
+      if sub[0] not in ('.', '..'):
+        rm_rf(fn + '/' + sub[0])
+    os.rmdir(fn)
+  except Exception as e:
+    try:
+      os.remove(fn)
+    except Exception as e:
+      print('WARNING: rm(%s) failed: %s' % (fn, e))
+
+
+def http_get(proto, host, path, fd=None):
+  client = socket.socket()
+  if ':' in host:
+    hostname, port = host.split(':')
+  else:
+    port = 443 if (proto == 'https') else 80
+    hostname = host
+  client.connect(socket.getaddrinfo(hostname, int(port))[0][-1])
+  if proto == 'https':
+    import ssl
+    client = ssl.wrap_socket(client)
+  elif hasattr(client, 'makefile'):
+    client = client.makefile("rwb", 0)
+  if '%(hwid)s' in path:
+    path = path % {'hwid': HWID}
+  client.write(bytes(
+    'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host),
+    'latin-1'))
+
+  body = client.read(4096)
+  size = len(body)
+  header, body = body.split(b'\r\n\r\n', 1)
+  header_lines = str(header, 'latin-1').splitlines()
+  if fd:
+      fd.write(body)
+      while True:
+          body = client.read(4096)
+          if body:
+              size += len(body)
+              fd.write(body)
+          else:
+              break
+  else:
+      while len(body) < 64000:
+          data = client.read(4096)
+          if data:
+              body += data
+          else:
+              break
+
+  client.close()
+  return (
+    proto, host, path,
+    header_lines[0],
+    dict(l.split(': ', 1) for l in header_lines[1:]),
+    (size if fd else body))
+
+
 def bootstrap_2():
   print("=1= Chaining execution to bootstrap_live/stage_2 ...")
   if '/bootstrap_live' not in sys.path:
@@ -48,64 +115,11 @@ def bootstrap_2():
 
 def bootstrap_1(settings):
   try:
-    from os import ilistdir
-  except ImportError:
-    def ilistdir(path):
-      return ((d, None, None) for d in os.listdir(path))
-
-  try:
     import machine
     import ubinascii
     HWID = str(ubinascii.hexlify(machine.unique_id()), 'latin-1')
   except:
     HWID = 'unknown'
-
-  def http_get(proto, host, path, fd=None):
-    client = socket.socket()
-    if ':' in host:
-      hostname, port = host.split(':')
-    else:
-      port = 443 if (proto == 'https') else 80
-      hostname = host
-    client.connect(socket.getaddrinfo(hostname, int(port))[0][-1])
-    if proto == 'https':
-      import ssl
-      client = ssl.wrap_socket(client)
-    elif hasattr(client, 'makefile'):
-      client = client.makefile("rwb", 0)
-    if '%(hwid)s' in path:
-      path = path % {'hwid': HWID}
-    client.write(bytes(
-      'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host),
-      'latin-1'))
-
-    body = client.read(4096)
-    size = len(body)
-    header, body = body.split(b'\r\n\r\n', 1)
-    header_lines = str(header, 'latin-1').splitlines()
-    if fd:
-        fd.write(body)
-        while True:
-            body = client.read(4096)
-            if body:
-                size += len(body)
-                fd.write(body)
-            else:
-                break
-    else:
-        while len(body) < 64000:
-            data = client.read(4096)
-            if data:
-                body += data
-            else:
-                break
-
-    client.close()
-    return (
-      proto, host, path,
-      header_lines[0],
-      dict(l.split(': ', 1) for l in header_lines[1:]),
-      (size if fd else body))
 
   def make_parent(fn):
     parts = fn.split('/')
@@ -115,19 +129,6 @@ def bootstrap_1(settings):
         os.mkdir('/'.join(parts[:i+1]))
       except OSError:
         pass
-
-  def rm_rf(fn):
-    try:
-      for sub in ilistdir(fn):
-        if sub[0] not in ('.', '..'):
-          rm_rf(fn + '/' + sub[0])
-      os.rmdir(fn)
-    except Exception as e:
-      #print('%s: %s' % (fn, e))
-      try:
-        os.remove(fn)
-      except Exception as e:
-        pass  #print('%s: %s' % (fn, e))
 
   def download_code(url):
     proto, host, path = url.replace('://', '/').split('/', 2)
@@ -152,6 +153,7 @@ def bootstrap_1(settings):
       except:
         pass
 
+    rm_rf('bootstrap_old')
     rm_rf('bootstrap.tmp')
     os.mkdir('bootstrap.tmp')
     for src, dest in bootstrap.get('mirror', {}).items():
@@ -173,7 +175,6 @@ def bootstrap_1(settings):
     # FIXME: Run self-tests before switching? Can MicroPython do that?
 
     try:
-      rm_rf('bootstrap_old')
       os.rename('bootstrap_live', 'bootstrap_old')
     except:
       pass
@@ -220,5 +221,7 @@ if __name__ == "__main__":
   bootstrap_1(load_settings())
   del load_settings
   del bootstrap_1
+  del http_get
+  del rm_rf
   gc.collect()
   bootstrap_2()
