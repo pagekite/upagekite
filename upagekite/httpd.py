@@ -21,16 +21,18 @@ _HANDLERS_ASYNC = {}
 
 
 # Decorators for registering functions as URL handlers
-def url(path):
+def url(*paths):
     def decorate(func):
-        _HANDLERS_SYNC[path] = func
+        for path in paths:
+            _HANDLERS_SYNC[path] = func
         return func
     return decorate
 
 
-def async_url(path):
+def async_url(*paths):
     def decorate(func):
-        _HANDLERS_ASYNC[path] = func
+        for path in paths:
+            _HANDLERS_ASYNC[path] = func
         return func
     return decorate
 
