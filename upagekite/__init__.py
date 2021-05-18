@@ -276,6 +276,8 @@ class uPageKite:
     if len(self.kites) == 0:
       return relays
 
+    await self.proto.check_fe_hint_url()
+
     for kite in self.kites:
       for a in await self.proto.get_kite_addrinfo(kite):
         if a[-1] not in relays and len(relays) < 10:

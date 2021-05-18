@@ -25,6 +25,11 @@ import select
 from hashlib import sha1
 from struct import unpack
 
+
+# This is a cache of DNS hints we have recived from the network.
+_DNS_HINTS = {}
+
+
 try:
     import uasyncio as asyncio
 except ImportError:
@@ -159,6 +164,11 @@ class uPageKiteDefaults:
   TOKEN_LENGTH = 36
   WITH_SSL = (ssl is not False)
 
+  # These are used to compensate for Micropython/ESP32 having
+  # an overly dumb DNS implementation.
+  FE_HINT_NAME = 'fe.b5p.us'
+  FE_HINT_URL = ('http', 'pagekite.net', '/logs/relays.txt')
+
   TICK_INTERVAL = 16
   MIN_CHECK_INTERVAL = 16
   MAX_CHECK_INTERVAL = 900
@@ -199,7 +209,36 @@ class uPageKiteDefaults:
     return rs
 
   @classmethod
-  async def http_get(cls, proto, http_host, path, addr=None, atonce=1024, maxread=8196):
+  async def check_fe_hint_url(cls):
+    global _DNS_HINTS
+    result = None
+    try:
+      proto, host, path = cls.FE_HINT_URL
+      result = await cls.http_get(proto, host, path, dns_hints=True)
+      if ' 200 ' not in result[0]:
+        raise Exception('Failed')
+      cls.scan_for_dns_hints(str(result[-1] or '', 'latin-1').splitlines())
+      if cls.debug:
+        cls.debug('Updated DNS hints: %s' % (_DNS_HINTS))
+    except Exception as e:
+      if cls.error:
+        cls.error(
+          'Failed to update DNS hints: %s => (%s, %s)'
+          % (cls.FE_HINT_URL, result, e))
+
+  @classmethod
+  def scan_for_dns_hints(cls, lines):
+    global _DNS_HINTS
+    for line in lines:
+      if 'X-DNS: ' == line[:7]:
+        xdns, host, ips = line.split(' ', 2)
+        ips = [i.strip() for i in ips.split(',')]
+        if host and ips:
+          _DNS_HINTS[host] = ips
+
+  @classmethod
+  async def http_get(cls, proto, http_host, path,
+                     addr=None, atonce=1024, maxread=8196, dns_hints=False):
     if addr is None:
       addr = http_host
     if hasattr(addr, 'split'):
@@ -237,6 +276,8 @@ class uPageKiteDefaults:
       header = response
       body = ''
     header_lines = (str(header, 'latin-1') or '\n').splitlines()
+    if dns_hints:
+      cls.scan_for_dns_hints(header_lines)
     return (
       header_lines[0],
       dict(l.split(': ', 1) for l in header_lines[1:]),
@@ -252,20 +293,30 @@ class uPageKiteDefaults:
 
   @classmethod
   async def get_relays_addrinfo(cls):
-    try:
-      if cls.FE_NAME:
-        await sleep_ms(5)
-        return socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
-    except IOError:
-      pass
-    return []
+    global _DNS_HINTS
+    addrs = []
+    if cls.FE_NAME:
+      await sleep_ms(5)
+      try:
+        addrs = socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
+      except IOError:
+        pass
+      for name in (cls.FE_NAME, cls.FE_HINT_NAME):
+        for ip in _DNS_HINTS.get(name, []):
+          await sleep_ms(1)
+          try:
+            ai = socket.getaddrinfo(ip, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
+            addrs.extend(ai)
+          except IOError:
+            pass
+    return addrs
 
   @classmethod
   async def ping_relay(cls, relay_addr, bias=1.0):
     try:
       l1, hdrs, t1, t2, body = await cls.http_get(
         'http', 'ping.pagekite', '/ping', relay_addr,
-        atonce=250)
+        atonce=250, dns_hints=True)
 
       elapsed = t1 + t2
       biased = int(float(elapsed) * bias)
