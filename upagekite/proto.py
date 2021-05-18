@@ -75,9 +75,9 @@ except ImportError:
 try:
   import usocket as socket
   IOError = OSError
-  async def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
-    if proto.trace:
-      proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
+  async def sock_connect_stream(uPK, addr, ssl_wrap=False, timeouts=(20, 300)):
+    if uPK.trace:
+      uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
     await sleep_ms(1)
@@ -92,9 +92,9 @@ try:
     return (s, s)
 except ImportError:
   import socket
-  async def sock_connect_stream(proto, addr, ssl_wrap=False, timeouts=(20, 300)):
-    if proto.trace:
-      proto.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
+  async def sock_connect_stream(uPK, addr, ssl_wrap=False, timeouts=(20, 300)):
+    if uPK.trace:
+      uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
     await sleep_ms(1)
@@ -133,7 +133,8 @@ class Kite:
 
 
 class Frame:
-  def __init__(self, data=None, headers=None, payload=None):
+  def __init__(self, uPK, data=None, headers=None, payload=None):
+    self.uPK = uPK
     if data:
       hdr_len = data.index(b'\r\n\r\n')
       hdr = str(data[:hdr_len], 'latin-1')

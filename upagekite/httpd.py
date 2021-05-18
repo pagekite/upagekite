@@ -55,8 +55,8 @@ class HTTPD:
     'txt': 'text/plain; charset=utf-8',
     '_': 'application/octet-stream'}
 
-  def __init__(self, name, webroot, env, proto):
-    self.proto = proto
+  def __init__(self, name, webroot, env, uPK):
+    self.uPK = uPK
     self.name = name
     self.webroot = webroot
     self.static_max_age = 3600
@@ -91,14 +91,14 @@ class HTTPD:
         'Content-Type: %s\r\n'
         '%s%s\r\n'
       ) % (
-        code, msg, self.proto.APPURL, mimetype,
+        code, msg, self.uPK.APPURL, mimetype,
         ('Cache-Control: max-age=%d\r\n' % ttl) if ttl else '',
         ''.join('%s: %s\r\n' % (k, v) for k, v in hdrs.items()))
 
   def log_request(self, frame, method, path, code,
                   sent='-', headers={}, user='-'):
-    if self.proto.info:
-      self.proto.info('[www] %s %s - %s %s:%s%s - %s %s - %s' % (
+    if self.uPK.info:
+      self.uPK.info('[www] %s %s - %s %s:%s%s - %s %s - %s' % (
         user, frame.remote_ip,
         method, frame.host, frame.port, path,
         code, sent,
@@ -129,7 +129,7 @@ class HTTPD:
         path, qs = path.split('?', 1)
       headers = dict(
         l[:128].split(': ', 1) for l in headers.splitlines()
-        if self.proto.PARSE_HTTP_HEADERS.match(l))
+        if self.uPK.PARSE_HTTP_HEADERS.match(l))
     except Exception as e:
       return await self._err(400, 'Invalid request', method, path, conn, frame)
 

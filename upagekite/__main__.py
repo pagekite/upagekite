@@ -13,7 +13,7 @@ import sys
 from . import Kite, uPageKite, uPageKiteDefaults
 
 
-class MyProto(uPageKiteDefaults):
+class MyDefaults(uPageKiteDefaults):
   # Disable connecting to new front-ends, static setup
   #FE_NAME = None
 
@@ -37,6 +37,6 @@ if __name__ == "__main__":
   try:
     uPageKite([
         Kite(sys.argv[1], sys.argv[2], handler=handle_http_request)
-      ], proto=MyProto).run()
+      ], uPK=MyDefaults).run()
   except IndexError:
     print('Usage: %s kitename kitesecret' % sys.argv[0])

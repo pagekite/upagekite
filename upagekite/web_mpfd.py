@@ -49,8 +49,8 @@ class ParseMPFD(ParseNull):
     post_data = self.headers['_post_data']
     box = [self.frame.payload]
     for line in _lines(box):
-      if self.proto.trace:
-        self.proto.trace('<<%s' % line)
+      if self.uPK.trace:
+        self.uPK.trace('<<%s' % line)
 
       if (line[:2] == b'--') and line[2:].startswith(bytes(self.attrs['boundary'], 'latin-1')):
         if 'fd' in self.payload:

@@ -20,15 +20,15 @@ try:
 except ImportError:
   settime = None
 
-def _ntp_settime(proto):
+def _ntp_settime(uPK):
   if settime is not None:
     try:
-      if proto.info:
-        proto.info('Attempting to set the time using NTP...')
+      if uPK.info:
+        uPK.info('Attempting to set the time using NTP...')
       settime()
     except Exception as e:
-      if proto.error:
-        proto.error('Failed to set NTP time: %s' % e)
+      if uPK.error:
+        uPK.error('Failed to set NTP time: %s' % e)
 
 
 class LocalHTTPKite(Kite):
@@ -64,17 +64,17 @@ class LocalHTTPKite(Kite):
     if data:
       self.sock.setblocking(True)
       self.client.write(bytes(data, 'latin-1'))
-      await sleep_ms(int(len(data) * self.proto.MS_DELAY_PER_BYTE))
+      await sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
     if eof:
       self.client.close()
       self.client = None
 
-  async def await_data(self, sid, handler, nbytes):
+  def await_data(self, uPK, sid, handler, nbytes):
     self.sock.setblocking(True)
     while nbytes > 0:
       await sleep_ms(1)
       more = self.client.read(min(2048, nbytes))
-      await handler(Frame(payload=more))
+      handler(Frame(uPK, payload=more))
       if more:
         nbytes -= len(more)
       else:
@@ -84,7 +84,7 @@ class LocalHTTPKite(Kite):
     if self.sock:
       self.sock.close()
 
-  async def process_io(self):
+  async def process_io(self, uPK):
     self.sock = None
     try:
       self.sock, addr = self.fd.accept()
@@ -99,7 +99,7 @@ class LocalHTTPKite(Kite):
       req += self.client.read(4095)
       await sleep_ms(1)
 
-      await self.handler(self, self, Frame(payload=req, headers={
+      await self.handler(self, self, Frame(uPK, payload=req, headers={
         'Host': '0.0.0.0',
         'Proto': 'http',
         'Port': self.listening_port,
@@ -122,8 +122,8 @@ class uPageKiteConn:
 
   async def connect(self, relay_addr):
     pk = self.pk
-    self.ip = pk.proto.addr_to_quad(relay_addr)
-    self.fd, self.conn = await pk.proto.connect(relay_addr, pk.kites, pk.secret)
+    self.ip = pk.uPK.addr_to_quad(relay_addr)
+    self.fd, self.conn = await pk.uPK.connect(relay_addr, pk.kites, pk.secret)
     now = int(time.time())
     self.last_data_ts = now
     self.last_settime = now
@@ -134,39 +134,39 @@ class uPageKiteConn:
     return "<uPageKiteConn(%s)>" % self.ip
 
   def sync_reply(self, frame, data=None, eof=True):
-    p = self.pk.proto
+    uPK = self.pk.uPK
     if data:
-      p.sync_send(self.conn, p.fmt_data(frame, data))
+      uPK.sync_send(self.conn, uPK.fmt_data(frame, data))
     if eof:
-      p.sync_send(self.conn, p.fmt_eof(frame))
+      uPK.sync_send(self.conn, uPK.fmt_eof(frame))
 
   async def reply(self, frame, data=None, eof=True):
-    p = self.pk.proto
+    uPK = self.pk.uPK
     if data:
-      await p.send(self.conn, p.fmt_data(frame, data))
+      await uPK.send(self.conn, uPK.fmt_data(frame, data))
     if eof:
-      await p.send(self.conn, p.fmt_eof(frame))
+      await uPK.send(self.conn, uPK.fmt_eof(frame))
 
   async def send_ping(self):
-    await self.pk.proto.send(self.conn, self.pk.proto.fmt_ping())
+    await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_ping())
 
-  def await_data(self, sid, handler, nbytes):
+  def await_data(self, uPK, sid, handler, nbytes):
     self.handlers[sid] = handler
 
   def close(self):
     self.handlers = {}
     self.fd.close()
 
-  async def process_io(self):
+  async def process_io(self, uPK):
     try:
-      frame = await self.pk.proto.read_chunk(self.conn)
+      frame = await self.pk.uPK.read_chunk(self.conn)
       self.last_data_ts = int(time.time())
       if frame:
-        frame = Frame(frame)
+        frame = Frame(uPK, frame)
 
         if frame.ping:
           # Should never happen, as we send our own pings much more frequently
-          await self.pk.proto.send(self.conn, self.pk.proto.fmt_pong(frame.ping))
+          await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_pong(frame.ping))
 
         elif frame.sid and frame.sid in self.handlers:
           try:
@@ -194,8 +194,8 @@ class uPageKiteConn:
       # Zero-length chunks aren't an error condition
       return True
     except EofTunnelError:
-      if self.pk.proto.debug:
-        self.pk.proto.debug('EOF tunnel')
+      if self.pk.uPK.debug:
+        self.pk.uPK.debug('EOF tunnel')
       return False
 
 
@@ -224,19 +224,19 @@ class uPageKiteConnPool:
       timeout -= 25
     return []
 
-  async def process_io(self, timeout):
+  async def process_io(self, uPK, timeout):
     count = 0
-    if self.pk.proto.trace:
-      self.pk.proto.trace('Entering poll(%d)' % timeout)
+    if self.pk.uPK.trace:
+      self.pk.uPK.trace('Entering poll(%d)' % timeout)
     for (obj, event) in await self.async_poll(timeout):
       if (event & select.POLLIN) or (event & select.POLLPRI):
         conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
-        if self.pk.proto.trace:
-          self.pk.proto.trace('process_io(%s)' % conn)
-        if await conn.process_io():
+        if self.pk.uPK.trace:
+          self.pk.uPK.trace('process_io(%s)' % conn)
+        if await conn.process_io(uPK):
           count += 1
         else:
-          self.pk.proto.debug('conn.process_io() returned False')
+          self.pk.uPK.debug('conn.process_io() returned False')
           return False
       elif event & select.POLLOUT:
         pass
@@ -244,28 +244,28 @@ class uPageKiteConnPool:
         return False
 
     dead = int(time.time()) - max(
-      self.pk.proto.MIN_CHECK_INTERVAL * 6,
-      self.pk.proto.TUNNEL_TIMEOUT)
+      self.pk.uPK.MIN_CHECK_INTERVAL * 6,
+      self.pk.uPK.TUNNEL_TIMEOUT)
     for conn in self.conns.values():
       if hasattr(conn, 'send_ping'):
         if conn.last_data_ts < dead:
-          if self.pk.proto.info:
-            self.pk.proto.info(
+          if self.pk.uPK.info:
+            self.pk.uPK.info(
               'No PING response from %s, assuming it is down.' % (conn,))
           return False
-        elif conn.last_data_ts < dead + (self.pk.proto.MIN_CHECK_INTERVAL * 2):
+        elif conn.last_data_ts < dead + (self.pk.uPK.MIN_CHECK_INTERVAL * 2):
           await conn.send_ping()
 
     return count
 
 
 class uPageKite:
-  def __init__(self, kites, socks=[], proto=uPageKiteDefaults):
-    self.proto = proto
+  def __init__(self, kites, socks=[], uPK=uPageKiteDefaults):
+    self.uPK = uPK
     self.keep_running = True
     self.kites = kites
     self.socks = socks
-    self.secret = proto.make_random_secret([(k.name, k.secret) for k in kites])
+    self.secret = uPK.make_random_secret([(k.name, k.secret) for k in kites])
     self.want_dns_update = [0]
 
   async def choose_relays(self, preferred=[]):
@@ -276,18 +276,18 @@ class uPageKite:
     if len(self.kites) == 0:
       return relays
 
-    await self.proto.check_fe_hint_url()
+    await self.uPK.check_fe_hint_url()
 
     for kite in self.kites:
-      for a in await self.proto.get_kite_addrinfo(kite):
+      for a in await self.uPK.get_kite_addrinfo(kite):
         if a[-1] not in relays and len(relays) < 10:
           relays.append(a[-1])
-    for a in await self.proto.get_relays_addrinfo():
+    for a in await self.uPK.get_relays_addrinfo():
       if a[-1] not in relays and len(relays) < 10:
         relays.append(a[-1])
     if not relays:
-      if self.proto.info:
-        self.proto.info('No relays found in DNS, is our Internet down?')
+      if self.uPK.info:
+        self.uPK.info('No relays found in DNS, is our Internet down?')
       return []
 
     if len(relays) == 1:
@@ -296,7 +296,7 @@ class uPageKite:
     pings = [0] * len(relays)
     for i, relay_addr in enumerate(relays):
       bias = 0.9 if (not i or relay_addr in preferred) else 1.0
-      pings[i] = await self.proto.ping_relay(relay_addr, bias)
+      pings[i] = await self.uPK.ping_relay(relay_addr, bias)
 
     relays = list(zip(pings, relays))
     fastest = min(relays)
@@ -315,8 +315,8 @@ class uPageKite:
       except KeyboardInterrupt:
         raise
       except Exception as e:
-        if self.proto.error:
-          self.proto.error('Failed to connect %s: %s' % (relay, e))
+        if self.uPK.error:
+          self.uPK.error('Failed to connect %s: %s' % (relay, e))
     if conns:
       self.want_dns_update = [now - 1, conns[0].ip]
     return conns
@@ -325,10 +325,10 @@ class uPageKite:
     max_timeout = 30000
     wdt = None
     try:
-      if self.proto.WATCHDOG_TIMEOUT:
+      if self.uPK.WATCHDOG_TIMEOUT:
         from machine import WDT
-        wdt = WDT(timeout=self.proto.WATCHDOG_TIMEOUT)
-        max_timeout = min(max_timeout, self.proto.WATCHDOG_TIMEOUT // 2)
+        wdt = WDT(timeout=self.uPK.WATCHDOG_TIMEOUT)
+        max_timeout = min(max_timeout, self.uPK.WATCHDOG_TIMEOUT // 2)
     except KeyboardInterrupt:
       raise
     except:
@@ -345,7 +345,7 @@ class uPageKite:
         timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
         gc.collect()
         await sleep_ms(1)
-        if await pool.process_io(int(timeout)) is False:
+        if await pool.process_io(self.uPK, int(timeout)) is False:
           raise EofTunnelError('process_io returned False')
 
       # Happy ending!
@@ -365,9 +365,9 @@ class uPageKite:
 
   # This is easily overridden by subclasses
   async def tick(self, **attrs):
-    if self.proto.info:
-      self.proto.info("Tick: %s %s%s"
-        % (self.proto.APPNAME, self.proto.APPVER,
+    if self.uPK.info:
+      self.uPK.info("Tick: %s %s%s"
+        % (self.uPK.APPNAME, self.uPK.APPVER,
            ''.join('; %s=%s' % pair for pair in attrs.items())))
 
   async def check_relays(self, now, back_off):
@@ -381,18 +381,18 @@ class uPageKite:
       back_off = 1
     else:
       back_off = min(back_off * 2,
-        self.proto.MAX_CHECK_INTERVAL // self.proto.MIN_CHECK_INTERVAL)
-      if self.proto.info:
-        self.proto.info(
+        self.uPK.MAX_CHECK_INTERVAL // self.uPK.MIN_CHECK_INTERVAL)
+      if self.uPK.info:
+        self.uPK.info(
           "Next connection attempt in %d+ seconds..."
-          % (back_off * self.proto.MIN_CHECK_INTERVAL))
+          % (back_off * self.uPK.MIN_CHECK_INTERVAL))
 
     return relays, back_off
 
   async def check_dns(self, now, relays, back_off):
     recheck_max = 0
     if now > 3600:
-      recheck_max = max(0, 3600 // self.proto.MIN_CHECK_INTERVAL)
+      recheck_max = max(0, 3600 // self.uPK.MIN_CHECK_INTERVAL)
       if 1 < self.want_dns_update[0] <= recheck_max:
         self.want_dns_update[0] -= 1
     else:
@@ -401,27 +401,27 @@ class uPageKite:
     if 1 == self.want_dns_update[0]:
       self.want_dns_update[0] = recheck_max
       for kite in self.kites:
-        if self.proto.trace:
-          self.proto.trace("Checking current DNS state for %s" % kite)
-        for a in self.proto.get_kite_addrinfo(kite):
+        if self.uPK.trace:
+          self.uPK.trace("Checking current DNS state for %s" % kite)
+        for a in self.uPK.get_kite_addrinfo(kite):
           if a[-1][0] not in self.want_dns_update:
-            if self.proto.info:
-              self.proto.info(
+            if self.uPK.info:
+              self.uPK.info(
                 "DNS for %s is wrong (%s), will update" % (kite, a[-1][0]))
-            self.want_dns_update[0] = now + (back_off * self.proto.MIN_CHECK_INTERVAL * 2)
+            self.want_dns_update[0] = now + (back_off * self.uPK.MIN_CHECK_INTERVAL * 2)
             # FIXME: Was that the right thing to do?
 
     if recheck_max < self.want_dns_update[0] < now:
-      if await self.proto.update_dns(self.want_dns_update[1], self.kites):
+      if await self.uPK.update_dns(self.want_dns_update[1], self.kites):
         self.want_dns_update[0] = recheck_max
         if relays:
           back_off = 1
       else:
         back_off = min(back_off * 2,
-          self.proto.MAX_CHECK_INTERVAL // self.proto.MAX_CHECK_INTERVAL)
-        self.want_dns_update[0] = now + (back_off * self.proto.MIN_CHECK_INTERVAL * 2)
-        if self.proto.info:
-          self.proto.info(
+          self.uPK.MAX_CHECK_INTERVAL // self.uPK.MAX_CHECK_INTERVAL)
+        self.want_dns_update[0] = now + (back_off * self.uPK.MIN_CHECK_INTERVAL * 2)
+        if self.uPK.info:
+          self.uPK.info(
             "Next DNS update attempt in %d+ seconds..."
             % (self.want_dns_update[0] - now))
 
@@ -429,7 +429,7 @@ class uPageKite:
 
   async def main(self):
     if time.time() < 0x27640000:
-      _ntp_settime(self.proto)
+      _ntp_settime(self.uPK)
 
     next_check = int(time.time())
     back_off = 1
@@ -453,21 +453,21 @@ class uPageKite:
 
       # Schedule our next check; it should be neither too far in the future,
       # nor in the distant past. Clocks can misbehave, so we check for both.
-      if next_check > now + back_off * self.proto.MIN_CHECK_INTERVAL:
-        next_check = now + back_off * self.proto.MIN_CHECK_INTERVAL
+      if next_check > now + back_off * self.uPK.MIN_CHECK_INTERVAL:
+        next_check = now + back_off * self.uPK.MIN_CHECK_INTERVAL
       while next_check <= now:
-        next_check += back_off * self.proto.MIN_CHECK_INTERVAL
+        next_check += back_off * self.uPK.MIN_CHECK_INTERVAL
 
       # Process IO events for a while, or sleep.
       if relays or self.socks:
-        if not await self.relay_loop(relays, now + self.proto.TICK_INTERVAL):
+        if not await self.relay_loop(relays, now + self.uPK.TICK_INTERVAL):
           if relays:
             # We had a working connection, it broke! Reconnect ASAP.
             next_check = now
           relays = []
       else:
-        if self.proto.debug:
-          self.proto.debug("No sockets available, sleeping until %x" % next_check)
+        if self.uPK.debug:
+          self.uPK.debug("No sockets available, sleeping until %x" % next_check)
         await asyncio.sleep(max(0, next_check - int(time.time())))
 
   def run(self):

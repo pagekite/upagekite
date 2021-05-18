@@ -59,7 +59,7 @@ def handler():
   <a target=_blank href="https://pagekite.net/">PageKite.net</a>
   credentials to work.
 </p>
-""") % (httpd.proto.APPNAME,)
+""") % (httpd.uPK.APPNAME,)
 
   send_http_response(ttl=10, body=("""\
 <html><head>
@@ -82,9 +82,9 @@ def handler():
 </body></html>""") % (
     open('bootstrap/webroot/default.css').read(),  # Inline the CSS
     'none' if reboot else 'block',
-    httpd.proto.APPNAME,
-    httpd.proto.APPNAME,
-    httpd.proto.APPNAME,
+    httpd.uPK.APPNAME,
+    httpd.uPK.APPNAME,
+    httpd.uPK.APPNAME,
     status_message,
     wifi_config,
     pagekite_config))

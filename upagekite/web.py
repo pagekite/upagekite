@@ -42,9 +42,9 @@ class PostVars(dict):
 
 
 class ParseNull():
-  def __init__(self, proto, frame, headers, attrs):
+  def __init__(self, uPK, frame, headers, attrs):
+    self.uPK = uPK
     self.headers = headers
-    self.proto = proto
     self.frame = frame
     self.attrs = attrs
     self.parse()
@@ -58,20 +58,20 @@ class ParseJSON(ParseNull):
     try:
       import json
       self.headers['_post_json'] = json.loads(self.frame.payload)
-      if self.proto.trace:
-        self.proto.trace('<<%s' % self.frame.payload)
+      if self.uPK.trace:
+        self.uPK.trace('<<%s' % self.frame.payload)
       self.frame.payload = b''
     except Exception as e:
       pass
 
 
 def handle_big_request(handler, env):
-  proto = env['httpd'].proto
+  uPK = env['httpd'].uPK
   frame = env['frame']
   if frame.payload:
     hdr, frame.payload = frame.payload.split(b'\r\n\r\n', 1)
-    if proto.trace:
-      proto.trace('<<%s' % (hdr + b'\r\n\r\n',))
+    if uPK.trace:
+      uPK.trace('<<%s' % (hdr + b'\r\n\r\n',))
     del hdr
 
   # This has to happen before we let the parser run, as parsers often
@@ -79,7 +79,7 @@ def handle_big_request(handler, env):
   # our memory constraints.
   headers = env['http_headers']
   needed_bytes = int(headers.get('Content-Length', 0)) - len(frame.payload)
-  if needed_bytes > proto.MAX_POST_BYTES:
+  if needed_bytes > uPK.MAX_POST_BYTES:
     return env['send_http_response'](code=400, msg='Too big')
 
   (ctype, cattrs) = parse_hdr(headers.get('Content-Type', 'text/plain'))
@@ -92,7 +92,7 @@ def handle_big_request(handler, env):
     parser_cls = ParseNull
 
   headers['_post_data'] = PostVars()
-  parser = parser_cls(proto, frame, headers, cattrs)
+  parser = parser_cls(uPK, frame, headers, cattrs)
   gc.collect()
   if not needed_bytes:
     del parser
@@ -111,7 +111,7 @@ def handle_big_request(handler, env):
     if nbytes < 1 or needed_bytes[0] < 1:
       if frame.sid in conn.handlers:
         del conn.handlers[frame.sid]
-      if proto.trace and frame.payload:
-        proto.trace('<<%s' % frame.payload)
+      if uPK.trace and frame.payload:
+        uPK.trace('<<%s' % frame.payload)
       handler()
-  conn.await_data(frame.sid, update_frame, needed_bytes[0])
+  conn.await_data(uPK, frame.sid, update_frame, needed_bytes[0])

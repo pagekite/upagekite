@@ -84,7 +84,7 @@ def get_upk():
   # These are things we want visible within the individual page scripts
   # run for dynamic HTTP requests. Setting this allows code to consult
   # global settings, which could become a security leak.
-  env = {'proto': MyProto, 'settings': settings, 'kites': [], 'socks': []}
+  env = {'uPK': MyProto, 'settings': settings, 'kites': [], 'socks': []}
 
   httpd = upagekite.httpd.HTTPD(
     settings.get('kite_name', MyProto.APPNAME),
@@ -112,7 +112,7 @@ def get_upk():
   print()
   time.sleep(2)
 
-  upk = MyPageKite(env['kites'], socks=env['socks'], proto=MyProto)
+  upk = MyPageKite(env['kites'], socks=env['socks'], uPK=MyProto)
   env['upagekite'] = upk  # Expose to page logic
   return upk
 
