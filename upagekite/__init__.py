@@ -274,9 +274,10 @@ class uPageKiteConnPool:
 
 
 class uPageKite:
-  def __init__(self, kites, socks=[], uPK=uPageKiteDefaults):
+  def __init__(self, kites, socks=[], uPK=uPageKiteDefaults, public=True):
     self.uPK = uPK
     self.keep_running = True
+    self.public = public
     self.kites = kites
     self.socks = socks
     self.secret = uPK.make_random_secret([(k.name, k.secret) for k in kites])
@@ -296,11 +297,12 @@ class uPageKite:
         if a[-1] not in relays and len(relays) < 10:
           relays.append(a[-1])
 
-    for a in await self.uPK.get_relays_addrinfo():
-      if a[-1] not in relays and len(relays) < 10:
-        relays.append(a[-1])
+    if self.kites:
+      for a in await self.uPK.get_relays_addrinfo():
+        if a[-1] not in relays and len(relays) < 10:
+          relays.append(a[-1])
     if not relays:
-      if self.uPK.info:
+      if self.kites and self.uPK.info:
         self.uPK.info('No relays found in DNS, is our Internet down?')
       return []
 
@@ -460,12 +462,12 @@ class uPageKite:
         self.uPK.GC_COLLECT()
 
         # Check our relay status? Reconnect?
-        if not relays:
+        if self.public and not relays:
           relays, back_off = await self.check_relays(now, back_off)
           await fuzzy_sleep_ms()
 
         # Is DNS up to date?
-        if relays:
+        if self.public and relays:
           relays, back_off = await self.check_dns(now, relays, back_off)
           await fuzzy_sleep_ms()
 
