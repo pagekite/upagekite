@@ -29,9 +29,6 @@ from struct import unpack
 # This is a cache of DNS hints we have recived from the network.
 _DNS_HINTS = {}
 
-# A list of strict deadlines we check for when sleeping
-_STRICT_DEADLINES = []
-
 
 try:
     import uasyncio as asyncio
@@ -98,7 +95,7 @@ try:
     await fuzzy_sleep_ms()
     if ssl_wrap:
       uPK.GC_COLLECT()
-      await fuzzy_sleep_ms(fudge=300)
+      await fuzzy_sleep_ms(30)
       return (s, ssl.wrap_socket(s))
     await fuzzy_sleep_ms()
     return (s, s)
@@ -113,7 +110,7 @@ except ImportError:
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
-      await fuzzy_sleep_ms(fudge=300)
+      await fuzzy_sleep_ms(30)
       s = ssl.wrap_socket(s)
     await fuzzy_sleep_ms()
     return (s, s.makefile("rwb", 0))
@@ -126,37 +123,10 @@ class EofTunnelError(IOError):
   pass
 
 
-def add_sleep_ms_deadline(ms):
-  global _STRICT_DEADLINES
-  now = ticks_ms()
-  _STRICT_DEADLINES = [t for t in _STRICT_DEADLINES if t > now]
-  _STRICT_DEADLINES.append(now + ms)
-  _STRICT_DEADLINES.sort()
-
-
-async def strict_sleep_ms(ms):
-  global _STRICT_DEADLINES
-  deadline = ticks_ms() + ms
-  _STRICT_DEADLINES.append(deadline)
-  _STRICT_DEADLINES.sort()
-  await sleep_ms(max(1, deadline - ticks_ms() - 1))
-  now = ticks_ms()
-  _STRICT_DEADLINES = [t for t in _STRICT_DEADLINES if t > now]
-
-
-async def fuzzy_sleep_ms(ms=0, fudge=50):
-  global _STRICT_DEADLINES
+async def fuzzy_sleep_ms(ms=0):
   real_sleep_ms(1)
-  if ms > fudge:
-    await sleep_ms(ms)
-    ms = 0
-  if _STRICT_DEADLINES:
-    fudge_t = ticks_ms() + fudge
-    deadlines = [t for t in _STRICT_DEADLINES if t <= fudge_t]
-    if deadlines:
-      return await sleep_ms(max(ms, deadlines[-1] - ticks_ms() + 1))
-  if ms:
-    await sleep_ms(ms)
+  if ms > 1:
+    await sleep_ms(ms-1)
 
 
 class Kite:
