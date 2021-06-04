@@ -76,8 +76,11 @@ except ImportError:
         ssl = False
 
 try:
+    from utime import sleep_ms as real_sleep_ms
     from uasyncio import sleep_ms
 except ImportError:
+    def real_sleep_ms(ms):
+        time.sleep(ms/1000.0)
     async def sleep_ms(ms):
         await asyncio.sleep(ms/1000.0)
 
@@ -143,6 +146,7 @@ async def strict_sleep_ms(ms):
 
 async def fuzzy_sleep_ms(ms=0, fudge=50):
   global _STRICT_DEADLINES
+  real_sleep_ms(1)
   if ms > fudge:
     await sleep_ms(ms)
     ms = 0
@@ -380,6 +384,7 @@ class uPageKiteDefaults:
     data = bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
+    await fuzzy_sleep_ms()
     conn.write(data)
     await fuzzy_sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
@@ -415,6 +420,7 @@ class uPageKiteDefaults:
       header += byte
     if cls.trace:
       cls.trace('<< %s' % header)
+    await fuzzy_sleep_ms()
     return header
 
   @classmethod
@@ -538,6 +544,8 @@ class uPageKiteDefaults:
 
     if cls.info:
       cls.info('Connected to %s' % (relay_addr,))
+
+    await fuzzy_sleep_ms()
     return cfd, conn
 
   @classmethod

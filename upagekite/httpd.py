@@ -160,7 +160,7 @@ class HTTPD:
       fd = None
 
     postponed = []
-    await fuzzy_sleep_ms(5)
+    await fuzzy_sleep_ms()
     try:
       if func or func_async or filename.endswith('.py'):
         replies = []
