@@ -12,7 +12,7 @@ import gc
 import time
 import select
 
-from .proto import asyncio, socket, sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import asyncio, socket, fuzzy_sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
 
 
 try:
@@ -60,19 +60,18 @@ class LocalHTTPKite(Kite):
       self.client = None
 
   async def reply(self, frame, data=None, eof=True):
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     if data:
       self.sock.setblocking(True)
       self.client.write(bytes(data, 'latin-1'))
-      await sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
+      await fuzzy_sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
     if eof:
       self.client.close()
       self.client = None
 
   def await_data(self, uPK, sid, handler, nbytes):
-    self.sock.setblocking(True)
+    self.sock.setblocking(False)
     while nbytes > 0:
-      await sleep_ms(1)
       more = self.client.read(min(2048, nbytes))
       handler(Frame(uPK, payload=more))
       if more:
@@ -81,8 +80,11 @@ class LocalHTTPKite(Kite):
         break
 
   def close(self):
-    if self.sock:
+    if self.client is not None:
+      self.client.close()
+    elif self.sock is not None:
       self.sock.close()
+    self.sock = self.client = None
 
   async def process_io(self, uPK):
     self.sock = None
@@ -215,10 +217,10 @@ class uPageKiteConnPool:
   async def async_poll(self, timeout):
     while timeout > 0:
       if timeout > 50:
-        await sleep_ms(min(45, timeout))
+        await fuzzy_sleep_ms(min(45, timeout))
         timeout -= min(45, timeout)
       events = self.poll.poll(min(4, timeout))
-      await sleep_ms(1)
+      await fuzzy_sleep_ms()
       if events:
         return events
       timeout -= 5
@@ -269,8 +271,7 @@ class uPageKite:
     self.want_dns_update = [0]
 
   async def choose_relays(self, preferred=[]):
-    gc.collect()
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
 
     relays = []
     if len(self.kites) == 0:
@@ -310,7 +311,7 @@ class uPageKite:
     conns = []
     self.want_dns_update = [0]
     for relay in relays:
-      await sleep_ms(1)
+      await fuzzy_sleep_ms()
       try:
         conns.append(await uPageKiteConn(self).connect(relay))
       except KeyboardInterrupt:
@@ -335,17 +336,16 @@ class uPageKite:
     except:
       pass
 
-    gc.collect()
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     try:
       pool = uPageKiteConnPool(conns, self)
       while pool.conns and time.time() < deadline:
         if wdt:
           wdt.feed()
 
+        self.uPK.GC_COLLECT()
         timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
-        gc.collect()
-        await sleep_ms(1)
+        await fuzzy_sleep_ms()
         if await pool.process_io(self.uPK, int(timeout)) is False:
           raise EofTunnelError('process_io returned False')
 
@@ -437,6 +437,7 @@ class uPageKite:
     relays = []
     while self.keep_running:
       now = int(time.time())
+      await fuzzy_sleep_ms()
       await self.tick(
         back_off=back_off,
         relays=len(relays),
@@ -444,13 +445,17 @@ class uPageKite:
         mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
 
       if next_check <= now:
+        self.uPK.GC_COLLECT()
+
         # Check our relay status? Reconnect?
         if not relays:
           relays, back_off = await self.check_relays(now, back_off)
+          await fuzzy_sleep_ms()
 
         # Is DNS up to date?
         if relays:
           relays, back_off = await self.check_dns(now, relays, back_off)
+          await fuzzy_sleep_ms()
 
       # Schedule our next check; it should be neither too far in the future,
       # nor in the distant past. Clocks can misbehave, so we check for both.
@@ -458,6 +463,7 @@ class uPageKite:
         next_check = now + back_off * self.uPK.MIN_CHECK_INTERVAL
       while next_check <= now:
         next_check += back_off * self.uPK.MIN_CHECK_INTERVAL
+        await fuzzy_sleep_ms()
 
       # Process IO events for a while, or sleep.
       if relays or self.socks:
@@ -469,7 +475,7 @@ class uPageKite:
       else:
         if self.uPK.debug:
           self.uPK.debug("No sockets available, sleeping until %x" % next_check)
-        await asyncio.sleep(max(0, next_check - int(time.time())))
+        await fuzzy_sleep_ms(999 * max(0, next_check - int(time.time())))
 
   def run(self):
     loop = asyncio.get_event_loop()

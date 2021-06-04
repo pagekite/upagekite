@@ -13,7 +13,7 @@ import sys
 import time
 import json
 
-from .proto import ilistdir, sleep_ms
+from .proto import ilistdir, fuzzy_sleep_ms
 
 
 _HANDLERS_SYNC = {}
@@ -137,7 +137,7 @@ class HTTPD:
     func_async = _HANDLERS_ASYNC.get(path)
     filename = self.webroot + path
 
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     if func is None and func_async is None:
       try:
         ls = [l[0] for l in ilistdir(filename)]
@@ -160,7 +160,7 @@ class HTTPD:
       fd = None
 
     postponed = []
-    await sleep_ms(5)
+    await fuzzy_sleep_ms(5)
     try:
       if func or func_async or filename.endswith('.py'):
         replies = []
@@ -184,16 +184,16 @@ class HTTPD:
           'http_headers': headers}
         req_env.update(self.base_env)
         if fd:
-          await sleep_ms(25)
+          await fuzzy_sleep_ms(25)
           exec(fd.read(), req_env)
         else:
-          await sleep_ms(1)
+          await fuzzy_sleep_ms()
           if func:
             result = func(req_env)
           else:
             result = await func_async(req_env)
           if result:
-            await sleep_ms(1)
+            await fuzzy_sleep_ms()
             r(**result)
 
       else:
@@ -202,7 +202,7 @@ class HTTPD:
         await conn.reply(frame, resp, eof=False)
         sent = len(resp)
         while method != 'HEAD':
-          await sleep_ms(1)
+          await fuzzy_sleep_ms()
           data = fd.read(4096)
           if data:
             sent += len(data)
@@ -219,5 +219,5 @@ class HTTPD:
         fd.close()
 
     for f, a, kw in postponed:
-      await sleep_ms(1)
+      await fuzzy_sleep_ms()
       f(*a, **kw)

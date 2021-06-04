@@ -29,6 +29,9 @@ from struct import unpack
 # This is a cache of DNS hints we have recived from the network.
 _DNS_HINTS = {}
 
+# A list of strict deadlines we check for when sleeping
+_STRICT_DEADLINES = []
+
 
 try:
     import uasyncio as asyncio
@@ -73,6 +76,12 @@ except ImportError:
         ssl = False
 
 try:
+    from uasyncio import sleep_ms
+except ImportError:
+    async def sleep_ms(ms):
+        await asyncio.sleep(ms/1000.0)
+
+try:
   import usocket as socket
   IOError = OSError
   async def sock_connect_stream(uPK, addr, ssl_wrap=False, timeouts=(20, 300)):
@@ -80,15 +89,15 @@ try:
       uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     s.connect(addr)
     s.settimeout(timeouts[1])
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     if ssl_wrap:
-      gc.collect()
-      await sleep_ms(25)
+      uPK.GC_COLLECT()
+      await fuzzy_sleep_ms(25, fudge=75)
       return (s, ssl.wrap_socket(s))
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     return (s, s)
 except ImportError:
   import socket
@@ -97,20 +106,14 @@ except ImportError:
       uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
     s.settimeout(timeouts[0])
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
-      await sleep_ms(5)
+      await fuzzy_sleep_ms(25, fudge=75)
       s = ssl.wrap_socket(s)
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     return (s, s.makefile("rwb", 0))
-
-try:
-    from uasyncio import sleep_ms
-except ImportError:
-    async def sleep_ms(ms):
-        await asyncio.sleep(ms/1000.0)
 
 
 class RejectedError(ValueError):
@@ -118,6 +121,32 @@ class RejectedError(ValueError):
 
 class EofTunnelError(IOError):
   pass
+
+
+async def strict_sleep_ms(ms):
+  #return await sleep_ms(ms)
+  global _STRICT_DEADLINES
+  deadline = ticks_ms() + ms
+  _STRICT_DEADLINES.append(deadline)
+  _STRICT_DEADLINES.sort()
+  await sleep_ms(max(1, deadline - ticks_ms() - 1))
+  now = ticks_ms()
+  _STRICT_DEADLINES = [t for t in _STRICT_DEADLINES if t > now]
+
+
+# Tick 1100 stats: delayed=246=22.4%, missed=65=5.9%
+# Tick 1000 stats: delayed=164=16.4%, missed=54=5.4%  # So, better?
+# Tick 1000 stats: delayed=120=12.0%, missed=32=3.2%
+# Tick 1000 stats: delayed=143=14.3%, missed=46=4.6%
+
+async def fuzzy_sleep_ms(ms=1, fudge=50):
+  #return await sleep_ms(ms)
+  global _STRICT_DEADLINES
+  await sleep_ms(ms)
+  if _STRICT_DEADLINES:
+    soon = _STRICT_DEADLINES[0] - ticks_ms()
+    if soon < fudge:
+      await sleep_ms(fudge)
 
 
 class Kite:
@@ -178,6 +207,7 @@ class uPageKiteDefaults:
   MAX_POST_BYTES = 64 * 1024
   MS_DELAY_PER_BYTE = 0.25
 
+  GC_COLLECT = gc.collect  # Set to lambda: None to disable
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
   info = False   # Set to log in subclass to enable noise
@@ -248,10 +278,10 @@ class uPageKiteDefaults:
       else:
         port = 443 if (proto == 'https') else 80
         hostname = addr
-      await sleep_ms(1)
+      await fuzzy_sleep_ms()
       addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
-    await sleep_ms(5)
+    await fuzzy_sleep_ms(5)
     t0 = ticks_ms()
     cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
     await cls.send(conn,
@@ -261,7 +291,7 @@ class uPageKiteDefaults:
     response = b''
     while len(response) < maxread:
       try:
-        await sleep_ms(1)
+        await fuzzy_sleep_ms()
         data = conn.read(atonce)
         response += data
       except:
@@ -287,7 +317,7 @@ class uPageKiteDefaults:
   @classmethod
   async def get_kite_addrinfo(cls, kite):
     try:
-      await sleep_ms(5)
+      await fuzzy_sleep_ms(5)
       return socket.getaddrinfo(kite.name, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
     except IOError:
       return []
@@ -297,14 +327,14 @@ class uPageKiteDefaults:
     global _DNS_HINTS
     addrs = []
     if cls.FE_NAME:
-      await sleep_ms(5)
+      await fuzzy_sleep_ms(5)
       try:
         addrs = socket.getaddrinfo(cls.FE_NAME, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
       except IOError:
         pass
       for name in (cls.FE_NAME, cls.FE_HINT_NAME):
         for ip in _DNS_HINTS.get(name, []):
-          await sleep_ms(1)
+          await fuzzy_sleep_ms(1)
           try:
             ai = socket.getaddrinfo(ip, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
             addrs.extend(ai)
@@ -344,9 +374,9 @@ class uPageKiteDefaults:
     data = bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     conn.write(data)
-    await sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
+    await fuzzy_sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
   @classmethod
   def fmt_chunk(cls, data):
@@ -372,12 +402,13 @@ class uPageKiteDefaults:
   async def read_http_header(cls, conn):
     header = bytes()
     read_bytes = 1
+    await fuzzy_sleep_ms(20)
     while header[-4:] != b'\r\n\r\n':
       byte = conn.read(1)
       if byte in (b'', None):
         raise EofTunnelError()
       header += byte
-    await sleep_ms(1)
+    await fuzzy_sleep_ms()
     if cls.trace:
       cls.trace('<< %s' % header)
     return header
@@ -386,16 +417,17 @@ class uPageKiteDefaults:
   async def read_chunk(cls, conn):
     hdr = b''
     try:
+      await fuzzy_sleep_ms(20)
       while not hdr.endswith(b'\r\n'):
         byte = conn.read(1)
         if byte in (b'', None):
           raise EofTunnelError()
         hdr += byte
 
-      await sleep_ms(1)
+      await fuzzy_sleep_ms(5)
       chunk_len = int(str(hdr, 'latin-1').strip(), 16)
       payload = conn.read(chunk_len)
-      await sleep_ms(1)
+      await fuzzy_sleep_ms(5)
 
       # FIXME: We might need a loop here, in case of short reads.
       #        And for self preservation, a possibly discard mode if the

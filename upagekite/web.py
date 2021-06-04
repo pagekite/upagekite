@@ -93,7 +93,7 @@ def handle_big_request(handler, env):
 
   headers['_post_data'] = PostVars()
   parser = parser_cls(uPK, frame, headers, cattrs)
-  gc.collect()
+  uPK.GC_COLLECT()
   if not needed_bytes:
     del parser
     return handler()
@@ -107,7 +107,7 @@ def handle_big_request(handler, env):
     del frameN
 
     parser.parse()
-    gc.collect()
+    uPK.GC_COLLECT()
     if nbytes < 1 or needed_bytes[0] < 1:
       if frame.sid in conn.handlers:
         del conn.handlers[frame.sid]
