@@ -160,7 +160,7 @@ class HTTPD:
       fd = None
 
     postponed = []
-    await sleep_ms(1)
+    await sleep_ms(5)
     try:
       if func or func_async or filename.endswith('.py'):
         replies = []
@@ -187,12 +187,13 @@ class HTTPD:
           await sleep_ms(25)
           exec(fd.read(), req_env)
         else:
+          await sleep_ms(1)
           if func:
-            await sleep_ms(1)
             result = func(req_env)
           else:
             result = await func_async(req_env)
           if result:
+            await sleep_ms(1)
             r(**result)
 
       else:
@@ -201,6 +202,7 @@ class HTTPD:
         await conn.reply(frame, resp, eof=False)
         sent = len(resp)
         while method != 'HEAD':
+          await sleep_ms(1)
           data = fd.read(4096)
           if data:
             sent += len(data)

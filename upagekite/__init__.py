@@ -215,13 +215,13 @@ class uPageKiteConnPool:
   async def async_poll(self, timeout):
     while timeout > 0:
       if timeout > 50:
-        await sleep_ms(min(25, timeout))
-        timeout -= min(25, timeout)
-      events = self.poll.poll(min(24, timeout))
+        await sleep_ms(min(45, timeout))
+        timeout -= min(45, timeout)
+      events = self.poll.poll(min(4, timeout))
       await sleep_ms(1)
       if events:
         return events
-      timeout -= 25
+      timeout -= 5
     return []
 
   async def process_io(self, uPK, timeout):
@@ -282,6 +282,7 @@ class uPageKite:
       for a in await self.uPK.get_kite_addrinfo(kite):
         if a[-1] not in relays and len(relays) < 10:
           relays.append(a[-1])
+
     for a in await self.uPK.get_relays_addrinfo():
       if a[-1] not in relays and len(relays) < 10:
         relays.append(a[-1])

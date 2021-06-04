@@ -86,7 +86,7 @@ try:
     await sleep_ms(1)
     if ssl_wrap:
       gc.collect()
-      await sleep_ms(5)
+      await sleep_ms(25)
       return (s, ssl.wrap_socket(s))
     await sleep_ms(1)
     return (s, s)
