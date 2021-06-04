@@ -172,7 +172,9 @@ class uPageKiteConn:
 
   def close(self):
     self.handlers = {}
-    self.fd.close()
+    if self.fd is not None:
+      self.fd.close()
+      self.fd = None
 
   async def process_io(self, uPK):
     try:
@@ -286,6 +288,11 @@ class uPageKite:
     self.socks = socks
     self.secret = uPK.make_random_secret([(k.name, k.secret) for k in kites])
     self.want_dns_update = [0]
+    self.reconfig_flag = False
+
+  def reconfigure(self):
+    self.reconfig_flag = True
+    return self
 
   async def choose_relays(self, preferred=[]):
     await fuzzy_sleep_ms()
@@ -342,7 +349,7 @@ class uPageKite:
     return conns
 
   async def relay_loop(self, conns, deadline):
-    max_timeout = 30000
+    max_timeout = 5005
     wdt = None
     try:
       if self.uPK.WATCHDOG_TIMEOUT:
@@ -366,6 +373,11 @@ class uPageKite:
         await fuzzy_sleep_ms()
         if await pool.process_io(self.uPK, int(timeout_ms)) is False:
           raise EofTunnelError('process_io returned False')
+
+        if self.reconfig_flag:
+          if self.uPK.info:
+            self.uPK.info("Exiting relay_loop early: reconfiguration requested.")
+          return False
 
       # Happy ending!
       return True
@@ -454,6 +466,7 @@ class uPageKite:
     back_off = 1
     relays = []
     while self.keep_running:
+      self.reconfig_flag = False
       now = int(time.time())
       await self.tick(
         back_off=back_off,
@@ -488,12 +501,9 @@ class uPageKite:
           if relays:
             # We had a working connection, it broke! Reconnect ASAP.
             next_check = now
+            for conn in relays:
+              conn.close()
             relays = []
-        if not self.public:
-          # We are no longer public. Drop relay connections
-          for conn in relays:
-            conn.close()
-          relays = []
       else:
         if self.uPK.debug:
           self.uPK.debug("No sockets available, sleeping until %x" % next_check)
