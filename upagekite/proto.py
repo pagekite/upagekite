@@ -95,7 +95,7 @@ try:
     await fuzzy_sleep_ms()
     if ssl_wrap:
       uPK.GC_COLLECT()
-      await fuzzy_sleep_ms(25, fudge=75)
+      await fuzzy_sleep_ms(fudge=300)
       return (s, ssl.wrap_socket(s))
     await fuzzy_sleep_ms()
     return (s, s)
@@ -110,7 +110,7 @@ except ImportError:
     s.connect(addr)
     s.settimeout(timeouts[1])
     if ssl_wrap:
-      await fuzzy_sleep_ms(25, fudge=75)
+      await fuzzy_sleep_ms(fudge=300)
       s = ssl.wrap_socket(s)
     await fuzzy_sleep_ms()
     return (s, s.makefile("rwb", 0))
@@ -123,8 +123,15 @@ class EofTunnelError(IOError):
   pass
 
 
+def add_sleep_ms_deadline(ms):
+  global _STRICT_DEADLINES
+  now = ticks_ms()
+  _STRICT_DEADLINES = [t for t in _STRICT_DEADLINES if t > now]
+  _STRICT_DEADLINES.append(now + ms)
+  _STRICT_DEADLINES.sort()
+
+
 async def strict_sleep_ms(ms):
-  #return await sleep_ms(ms)
   global _STRICT_DEADLINES
   deadline = ticks_ms() + ms
   _STRICT_DEADLINES.append(deadline)
@@ -134,19 +141,18 @@ async def strict_sleep_ms(ms):
   _STRICT_DEADLINES = [t for t in _STRICT_DEADLINES if t > now]
 
 
-# Tick 1100 stats: delayed=246=22.4%, missed=65=5.9%
-# Tick 1000 stats: delayed=164=16.4%, missed=54=5.4%  # So, better?
-# Tick 1000 stats: delayed=120=12.0%, missed=32=3.2%
-# Tick 1000 stats: delayed=143=14.3%, missed=46=4.6%
-
-async def fuzzy_sleep_ms(ms=1, fudge=50):
-  #return await sleep_ms(ms)
+async def fuzzy_sleep_ms(ms=0, fudge=50):
   global _STRICT_DEADLINES
-  await sleep_ms(ms)
+  if ms > fudge:
+    await sleep_ms(ms)
+    ms = 0
   if _STRICT_DEADLINES:
-    soon = _STRICT_DEADLINES[0] - ticks_ms()
-    if soon < fudge:
-      await sleep_ms(fudge)
+    fudge_t = ticks_ms() + fudge
+    deadlines = [t for t in _STRICT_DEADLINES if t <= fudge_t]
+    if deadlines:
+      return await sleep_ms(max(ms, deadlines[-1] - ticks_ms() + 1))
+  if ms:
+    await sleep_ms(ms)
 
 
 class Kite:
@@ -215,7 +221,7 @@ class uPageKiteDefaults:
 
   @classmethod
   def log(cls, message):
-    print('[%x] %s' % (int(time.time()), message))
+    print('[%d] %s' % (ticks_ms(), message))
 
   @classmethod
   def addr_to_quad(cls, addr):
@@ -281,7 +287,7 @@ class uPageKiteDefaults:
       await fuzzy_sleep_ms()
       addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
-    await fuzzy_sleep_ms(5)
+    await fuzzy_sleep_ms()
     t0 = ticks_ms()
     cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
     await cls.send(conn,
@@ -334,7 +340,7 @@ class uPageKiteDefaults:
         pass
       for name in (cls.FE_NAME, cls.FE_HINT_NAME):
         for ip in _DNS_HINTS.get(name, []):
-          await fuzzy_sleep_ms(1)
+          await fuzzy_sleep_ms()
           try:
             ai = socket.getaddrinfo(ip, cls.FE_PORT, socket.AF_INET, socket.SOCK_STREAM)
             addrs.extend(ai)
@@ -374,7 +380,6 @@ class uPageKiteDefaults:
     data = bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
-    await fuzzy_sleep_ms()
     conn.write(data)
     await fuzzy_sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
@@ -408,7 +413,6 @@ class uPageKiteDefaults:
       if byte in (b'', None):
         raise EofTunnelError()
       header += byte
-    await fuzzy_sleep_ms()
     if cls.trace:
       cls.trace('<< %s' % header)
     return header

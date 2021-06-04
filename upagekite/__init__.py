@@ -12,7 +12,7 @@ import gc
 import time
 import select
 
-from .proto import asyncio, socket, fuzzy_sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import asyncio, socket, ticks_ms, fuzzy_sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
 
 
 try:
@@ -95,13 +95,14 @@ class LocalHTTPKite(Kite):
       else:
         self.sock = self.client
 
+      if uPK.trace:
+        uPK.trace('Reading request from: %s' % (addr,))
       self.sock.setblocking(False)
       req = b''
-      timeout = 500  # Total time to wait for data, milliseconds
+      deadline = ticks_ms() + 500  # When to give up on data
       sleep_t = 20
-      while (timeout > 0) and (b'\r\n\r\n' not in req):
-        await fuzzy_sleep_ms(min(sleep_t, timeout))
-        timeout -= sleep_t
+      while (ticks_ms() < deadline) and (b'\r\n\r\n' not in req):
+        await fuzzy_sleep_ms(min(sleep_t, 50))
         sleep_t += 5
         try:
           data = self.client.read(2048)
@@ -110,6 +111,8 @@ class LocalHTTPKite(Kite):
         except socket.error:
           pass
 
+      if uPK.trace:
+        uPK.trace('Got local request: %s' % (req,))
       if b'\r\n\r\n' in req:
         await self.handler(self, self, Frame(uPK, payload=req, headers={
           'Host': '0.0.0.0',
@@ -226,23 +229,23 @@ class uPageKiteConnPool:
     for fno in self.conns:
       self.poll.register(self.conns[fno].fd, select.POLLIN)
 
-  async def async_poll(self, timeout):
-    while timeout > 0:
-      if timeout > 50:
-        await fuzzy_sleep_ms(min(45, timeout))
-        timeout -= min(45, timeout)
-      events = self.poll.poll(min(4, timeout))
-      await fuzzy_sleep_ms()
+  async def async_poll(self, timeout_ms):
+    deadline = ticks_ms() + timeout_ms
+    while ticks_ms() < deadline:
+      events = self.poll.poll(1)
       if events:
+        if self.pk.uPK.trace:
+          self.pk.uPK.trace('poll() returned: %s' % (events,))
         return events
-      timeout -= 5
+      await fuzzy_sleep_ms(min(75, deadline - ticks_ms()))
     return []
 
-  async def process_io(self, uPK, timeout):
+  async def process_io(self, uPK, timeout_ms):
     count = 0
     if self.pk.uPK.trace:
-      self.pk.uPK.trace('Entering poll(%d)' % timeout)
-    for (obj, event) in await self.async_poll(timeout):
+      self.pk.uPK.trace('Entering poll(%d)' % timeout_ms)
+
+    for (obj, event) in await self.async_poll(timeout_ms):
       if (event & select.POLLIN) or (event & select.POLLPRI):
         conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
         if self.pk.uPK.trace:
@@ -257,18 +260,19 @@ class uPageKiteConnPool:
       else:
         return False
 
-    dead = int(time.time()) - max(
-      self.pk.uPK.MIN_CHECK_INTERVAL * 6,
-      self.pk.uPK.TUNNEL_TIMEOUT)
-    for conn in self.conns.values():
-      if hasattr(conn, 'send_ping'):
-        if conn.last_data_ts < dead:
-          if self.pk.uPK.info:
-            self.pk.uPK.info(
-              'No PING response from %s, assuming it is down.' % (conn,))
-          return False
-        elif conn.last_data_ts < dead + (self.pk.uPK.MIN_CHECK_INTERVAL * 2):
-          await conn.send_ping()
+    if count == 0:
+      dead = int(time.time()) - max(
+        self.pk.uPK.MIN_CHECK_INTERVAL * 6,
+        self.pk.uPK.TUNNEL_TIMEOUT)
+      for conn in self.conns.values():
+        if hasattr(conn, 'send_ping'):
+          if conn.last_data_ts < dead:
+            if self.pk.uPK.info:
+              self.pk.uPK.info(
+                'No PING response from %s, assuming it is down.' % (conn,))
+            return False
+          elif conn.last_data_ts < dead + (self.pk.uPK.MIN_CHECK_INTERVAL * 2):
+            await conn.send_ping()
 
     return count
 
@@ -358,9 +362,9 @@ class uPageKite:
           wdt.feed()
 
         self.uPK.GC_COLLECT()
-        timeout = min(max_timeout, max(100, (deadline - time.time()) * 1000))
+        timeout_ms = min(max(100, (deadline - time.time()) * 1000), max_timeout)
         await fuzzy_sleep_ms()
-        if await pool.process_io(self.uPK, int(timeout)) is False:
+        if await pool.process_io(self.uPK, int(timeout_ms)) is False:
           raise EofTunnelError('process_io returned False')
 
       # Happy ending!
@@ -451,13 +455,13 @@ class uPageKite:
     relays = []
     while self.keep_running:
       now = int(time.time())
-      await fuzzy_sleep_ms()
       await self.tick(
         back_off=back_off,
         relays=len(relays),
         socks=len(self.socks),
         mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
 
+      await fuzzy_sleep_ms()
       if next_check <= now:
         self.uPK.GC_COLLECT()
 
@@ -477,7 +481,6 @@ class uPageKite:
         next_check = now + back_off * self.uPK.MIN_CHECK_INTERVAL
       while next_check <= now:
         next_check += back_off * self.uPK.MIN_CHECK_INTERVAL
-        await fuzzy_sleep_ms()
 
       # Process IO events for a while, or sleep.
       if relays or self.socks:
@@ -485,6 +488,11 @@ class uPageKite:
           if relays:
             # We had a working connection, it broke! Reconnect ASAP.
             next_check = now
+            relays = []
+        if not self.public:
+          # We are no longer public. Drop relay connections
+          for conn in relays:
+            conn.close()
           relays = []
       else:
         if self.uPK.debug:
