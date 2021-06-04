@@ -95,17 +95,29 @@ class LocalHTTPKite(Kite):
       else:
         self.sock = self.client
 
-      await sleep_ms(1)
-      req = self.client.read(1)
       self.sock.setblocking(False)
-      req += self.client.read(4095)
-      await sleep_ms(1)
+      req = b''
+      timeout = 500  # Total time to wait for data, milliseconds
+      sleep_t = 20
+      while (timeout > 0) and (b'\r\n\r\n' not in req):
+        await fuzzy_sleep_ms(min(sleep_t, timeout))
+        timeout -= sleep_t
+        sleep_t += 5
+        try:
+          data = self.client.read(2048)
+          if data is not None:
+            req += data
+        except socket.error:
+          pass
 
-      await self.handler(self, self, Frame(uPK, payload=req, headers={
-        'Host': '0.0.0.0',
-        'Proto': 'http',
-        'Port': self.listening_port,
-        'RIP': '::ffff:%s' % (addr[0],)}))
+      if b'\r\n\r\n' in req:
+        await self.handler(self, self, Frame(uPK, payload=req, headers={
+          'Host': '0.0.0.0',
+          'Proto': 'http',
+          'Port': self.listening_port,
+          'RIP': '::ffff:%s' % (addr[0],)}))
+      else:
+        self.client.write(b'HTTP/1.0 408 Timed out\r\n\r\n')
 
     except KeyboardInterrupt:
       raise
