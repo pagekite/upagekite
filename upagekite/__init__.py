@@ -143,7 +143,7 @@ class uPageKiteConn:
     self.fd, self.conn = await pk.uPK.connect(relay_addr, pk.kites, pk.secret)
     now = int(time.time())
     self.last_data_ts = now
-    self.last_settime = now
+    self.last_handle_ts = now
     self.handlers = {}
     return self
 
@@ -179,7 +179,8 @@ class uPageKiteConn:
   async def process_io(self, uPK):
     try:
       frame = await self.pk.uPK.read_chunk(self.conn)
-      self.last_data_ts = int(time.time())
+      now = int(time.time())
+      self.last_data_ts = now
       if frame:
         frame = Frame(uPK, frame)
 
@@ -189,6 +190,7 @@ class uPageKiteConn:
 
         elif frame.sid and frame.sid in self.handlers:
           try:
+            self.last_handle_ts = now
             await self.handlers[frame.sid](frame)
           except Exception as e:
             print('Oops, sid handler: %s' % e)
@@ -202,6 +204,7 @@ class uPageKiteConn:
               # FIXME: We should allow the handler to return a callback
               #        for any subsequent data with the same SID, to
               #        allow for uploads or bidirectional comms.
+              self.last_handle_ts = now
               await kite.handler(kite, self, frame)
               break
 
@@ -434,13 +437,24 @@ class uPageKite:
       for kite in self.kites:
         if self.uPK.trace:
           self.uPK.trace("Checking current DNS state for %s" % kite)
-        for a in self.uPK.get_kite_addrinfo(kite):
-          if a and a[-1] and (a[-1][0] not in self.want_dns_update):
+        for a in await self.uPK.get_kite_addrinfo(kite):
+          if a[-1][0] not in self.want_dns_update:
             if self.uPK.info:
               self.uPK.info(
-                "DNS for %s is wrong (%s), will update" % (kite, a[-1][0]))
+                "DNS for %s is wrong (%s), should update" % (kite, a[-1][0]))
             self.want_dns_update[0] = now + (back_off * self.uPK.MIN_CHECK_INTERVAL * 2)
-            # FIXME: Was that the right thing to do?
+
+      if (self.want_dns_update[0] == recheck_max) and (len(relays) > 1):
+        if self.uPK.debug:
+          self.uPK.debug("DNS is good, checking for unused relays.")
+        idle_ts = now - (self.uPK.MAX_CHECK_INTERVAL * 2)
+        idle = [r for r in relays[1:] if r.last_handle_ts < idle_ts]
+        if idle:
+          relays = [r for r in relays if r not in idle]
+          for r in idle:
+            if self.uPK.info:
+              self.uPK.info("Disconnecting from relay: %s" % r)
+            r.close()
 
     if recheck_max < self.want_dns_update[0] < now:
       if await self.uPK.update_dns(self.want_dns_update[1], self.kites):
@@ -475,16 +489,16 @@ class uPageKite:
         mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
 
       await fuzzy_sleep_ms()
-      if next_check <= now:
+      if next_check <= now and self.public:
         self.uPK.GC_COLLECT()
 
         # Check our relay status? Reconnect?
-        if self.public and not relays:
+        if not relays:
           relays, back_off = await self.check_relays(now, back_off)
           await fuzzy_sleep_ms()
 
         # Is DNS up to date?
-        if self.public and relays:
+        if relays:
           relays, back_off = await self.check_dns(now, relays, back_off)
           await fuzzy_sleep_ms()
 
