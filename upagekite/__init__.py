@@ -435,7 +435,7 @@ class uPageKite:
         if self.uPK.trace:
           self.uPK.trace("Checking current DNS state for %s" % kite)
         for a in self.uPK.get_kite_addrinfo(kite):
-          if a[-1][0] not in self.want_dns_update:
+          if a and a[-1] and (a[-1][0] not in self.want_dns_update):
             if self.uPK.info:
               self.uPK.info(
                 "DNS for %s is wrong (%s), will update" % (kite, a[-1][0]))
