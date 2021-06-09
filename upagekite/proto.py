@@ -17,6 +17,7 @@
 # with the same set of Kite objects.
 #
 import gc
+import random
 import re
 import sys
 import struct
@@ -44,7 +45,6 @@ except ImportError:
 try:
   from os import urandom as random_bytes
 except ImportError:
-  import random
   def random_bytes(length):
     return bytes(random.getrandbits(8) for r in range(0, length))
 
@@ -186,6 +186,7 @@ class uPageKiteDefaults:
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
   MS_DELAY_PER_BYTE = 0.25
+  RANDOM_PING_VALUES = False
 
   GC_COLLECT = gc.collect  # Set to lambda: None to disable
   trace = False  # Set to log in subclass to enable noise
@@ -324,6 +325,8 @@ class uPageKiteDefaults:
 
   @classmethod
   async def ping_relay(cls, relay_addr, bias=1.0):
+    if cls.RANDOM_PING_VALUES:
+      return random.randint(100, 300)
     try:
       l1, hdrs, t1, t2, body = await cls.http_get(
         'http', 'ping.pagekite', '/ping', relay_addr,
