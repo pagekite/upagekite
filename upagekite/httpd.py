@@ -37,6 +37,21 @@ def async_url(*paths):
     return decorate
 
 
+# Helper class for navigating the request environment
+class ReqEnv(dict):
+    # Details about the client
+    remote_ip = property(lambda s: s['frame'].remote_ip)
+
+    # Details about the HTTP request
+    query_vars = property(lambda s: dict(s['http_headers']['_qs']))
+    query_tuples = property(lambda s: s['http_headers']['_qs'])
+    request_path = property(lambda s: s['http_headers']['_path'])
+    http_method = property(lambda s: s['http_headers']['_method'])
+    http_headers = property(lambda s: s['http_headers'])
+    http_host = property(lambda s: s['frame'].host)
+    http_port = property(lambda s: s['frame'].port)
+
+
 class HTTPD:
   METHODS = (
     'GET',
@@ -80,6 +95,8 @@ class HTTPD:
 
   @classmethod
   def qs_to_list(cls, qs):
+    if not qs:
+      return []
     return [
       [cls.unquote(part) for part in pair.split('=', 1)]
       for pair in qs.split('&')]
@@ -176,12 +193,12 @@ class HTTPD:
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
-        req_env = {
+        req_env = ReqEnv({
           'time': time, 'os': os, 'sys': sys, 'json': json,
           'httpd': self, 'kite': kite, 'conn': conn, 'frame': frame,
           'send_http_response': r,
           'postpone_action': p,
-          'http_headers': headers}
+          'http_headers': headers})
         req_env.update(self.base_env)
         if fd:
           await fuzzy_sleep_ms(25)
