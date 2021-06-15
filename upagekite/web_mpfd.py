@@ -38,12 +38,16 @@ class ParseMPFD(ParseNull):
     ParseNull.__init__(self, *args)  # Last, because parse() depends on the above
 
   def _tempfile(self):
-    temp_filename = '/upload_%d.tmp' % ParseMPFD.TEMP_FN
-    ParseMPFD.TEMP_FN += 1
-    ParseMPFD.TEMP_FN %= 4
-    return {
-      'temp_filename': temp_filename,
-      'fd': open(temp_filename, 'wb')}
+    for path in ('/tmp', ''):
+      try:
+        temp_filename = '%s/upload_%d.tmp' % (path, ParseMPFD.TEMP_FN)
+        fd = open(temp_filename, 'wb')
+        ParseMPFD.TEMP_FN += 1
+        ParseMPFD.TEMP_FN %= 4
+        return {'temp_filename': temp_filename, 'fd': fd}
+      except OSError:
+        pass
+    raise
 
   def parse(self):
     post_data = self.headers['_post_data']

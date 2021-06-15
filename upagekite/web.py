@@ -11,6 +11,24 @@
 import gc
 
 
+# Decorator for making functions handle POSTed data
+def process_post(max_bytes=None):
+  def decorate(func):
+    def post_wrapper(req_env):
+      uPK = req_env['httpd'].uPK
+      def handler():
+        try:
+          req_env['send_http_response'](**func(req_env))
+        except Exception as e:
+          if uPK.debug:
+            uPK.debug('post_wrapper failed: %s(%s)' % (type(e), e))
+          req_env['send_http_response'](code=500, msg='Server Error')
+      handle_big_request(handler, req_env, max_bytes=max_bytes)
+      return None
+    return post_wrapper
+  return decorate
+
+
 def html_encode(txt):
   txt = txt.replace('&', '&amp;')
   txt = txt.replace('<', '&lt;')
@@ -53,19 +71,34 @@ class ParseNull():
     pass
 
 
+class ParseWFUE(ParseNull):
+  def parse(self):
+    try:
+      from .httpd import HTTPD
+      if self.uPK.trace:
+        self.uPK.trace('<<%s' % self.frame.payload)
+      self.headers['_post_data'] = HTTPD.qs_to_list(
+        str(self.frame.payload, 'utf-8'))
+      self.frame.payload = b''
+    except Exception as e:
+      if self.uPK.debug:
+        self.uPK.debug('%s parse failed: %s(%s)' % (self, type(e), e))
+
+
 class ParseJSON(ParseNull):
   def parse(self):
     try:
       import json
-      self.headers['_post_json'] = json.loads(self.frame.payload)
       if self.uPK.trace:
         self.uPK.trace('<<%s' % self.frame.payload)
+      self.headers['_post_data'] = json.loads(self.frame.payload)
       self.frame.payload = b''
     except Exception as e:
-      pass
+      if self.uPK.debug:
+        self.uPK.debug('%s parse failed: %s(%s)' % (self, type(e), e))
 
 
-def handle_big_request(handler, env):
+def handle_big_request(handler, env, max_bytes=None):
   uPK = env['httpd'].uPK
   frame = env['frame']
   if frame.payload:
@@ -74,17 +107,25 @@ def handle_big_request(handler, env):
       uPK.trace('<<%s' % (hdr + b'\r\n\r\n',))
     del hdr
 
+  # Help our devs out a bit.
+  if uPK.debug and max_bytes and (max_bytes > uPK.MAX_POST_BYTES):
+    uPK.debug('BUG: max_bytes(%d) > MAX_POST_BYTES(%d), ignoring max_bytes'
+      % (max_bytes, uPK.MAX_POST_BYTES))
+
   # This has to happen before we let the parser run, as parsers often
   # modify the frame.payload: in-place mutations are how we cope with
   # our memory constraints.
   headers = env['http_headers']
+  max_bytes = min(max_bytes or uPK.MAX_POST_BYTES, uPK.MAX_POST_BYTES)
   needed_bytes = int(headers.get('Content-Length', 0)) - len(frame.payload)
-  if needed_bytes > uPK.MAX_POST_BYTES:
+  if needed_bytes > max_bytes:
     return env['send_http_response'](code=400, msg='Too big')
 
   (ctype, cattrs) = parse_hdr(headers.get('Content-Type', 'text/plain'))
   if ctype == 'application/json':
     parser_cls = ParseJSON
+  elif ctype == 'application/x-www-form-urlencoded':
+    parser_cls = ParseWFUE
   elif ctype == 'multipart/form-data':
     from .web_mpfd import ParseMPFD
     parser_cls = ParseMPFD

@@ -65,6 +65,8 @@ class ReqEnv(dict):
   remote_ip = property(lambda s: s['frame'].remote_ip)
 
   # Details about the HTTP request
+  post_vars = property(lambda s: dict(s['http_headers'].get('_post_data', [])))
+  post_data = property(lambda s: s['http_headers'].get('_post_data', {}))
   query_vars = property(lambda s: dict(s['http_headers']['_qs']))
   query_tuples = property(lambda s: s['http_headers']['_qs'])
   request_path = property(lambda s: s['http_headers']['_path'])
@@ -72,6 +74,7 @@ class ReqEnv(dict):
   http_headers = property(lambda s: s['http_headers'])
   http_host = property(lambda s: s['frame'].host)
   http_port = property(lambda s: s['frame'].port)
+  payload = property(lambda s: s['frame'].payload)
 
 
 class HTTPD:

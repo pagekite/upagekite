@@ -191,7 +191,7 @@ class uPageKiteConn:
         elif frame.sid and frame.sid in self.handlers:
           try:
             self.last_handle_ts = now
-            await self.handlers[frame.sid](frame)
+            self.handlers[frame.sid](frame)
           except Exception as e:
             print('Oops, sid handler: %s' % e)
             await self.reply(frame, eof=True)
