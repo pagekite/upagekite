@@ -347,14 +347,14 @@ class uPageKiteDefaults:
 
   @classmethod
   def sync_send(cls, conn, data):
-    data = bytes(data, 'latin-1')
+    data = data if (isinstance(data, bytes)) else bytes(data, 'latin-1')
     if cls.trace:
       cls.trace(']> %s' % data)
     conn.write(data)
 
   @classmethod
   async def send(cls, conn, data):
-    data = bytes(data, 'latin-1')
+    data = data if (isinstance(data, bytes)) else bytes(data, 'latin-1')
     if cls.trace:
       cls.trace('>> %s' % data)
     await fuzzy_sleep_ms()
@@ -363,23 +363,28 @@ class uPageKiteDefaults:
 
   @classmethod
   def fmt_chunk(cls, data):
-    return '%x\r\n%s' % (len(data), data)
+    data = data if isinstance(data, bytes) else bytes(data, 'latin-1')
+    return b'%x\r\n%s' % (len(data), data)
 
   @classmethod
   def fmt_data(cls, frame, data):
-    return cls.fmt_chunk('SID: %s\r\n\r\n%s' % (frame.sid, data))
+    return cls.fmt_chunk(b'SID: %s\r\n\r\n%s'% (
+      bytes(frame.sid, 'latin-1'),
+      data if isinstance(data, bytes) else bytes(data, 'latin-1')))
 
   @classmethod
   def fmt_eof(cls, frame):
-    return cls.fmt_chunk('SID: %s\r\nEOF: 1WR\r\n\r\n' % (frame.sid,))
+    return cls.fmt_chunk(b'SID: %s\r\nEOF: 1WR\r\n\r\n' % (
+      bytes(frame.sid, 'latin-1'),))
 
   @classmethod
   def fmt_pong(cls, pong):
-    return cls.fmt_chunk('NOOP: 1\r\nPONG: %s\r\n\r\n!' % (pong,))
+    return cls.fmt_chunk(b'NOOP: 1\r\nPONG: %s\r\n\r\n!' % (
+      pong if isinstance(pong, bytes) else bytes(pong, 'latin-1'),))
 
   @classmethod
   def fmt_ping(cls, conn):
-    return cls.fmt_chunk('NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
+    return cls.fmt_chunk(b'NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
 
   @classmethod
   async def read_http_header(cls, conn):
@@ -539,7 +544,9 @@ class uPageKiteDefaults:
         body = 'failed, %s' % e
         errors += 1
       if cls.debug:
+        if not isinstance(body, str):
+          body = str(body, 'latin-1')
         cls.debug('DNS update %s to %s: %s' % (
-          kite.name, relay_ip, str(body, 'latin-1').strip()))
+          kite.name, relay_ip, body.strip()))
 
     return (errors == 0)

@@ -13,7 +13,7 @@ import sys
 import time
 import json
 
-from .proto import ilistdir, fuzzy_sleep_ms
+from .proto import asyncio, ilistdir, fuzzy_sleep_ms
 
 
 _HANDLERS_SYNC = {}
@@ -98,7 +98,7 @@ class HTTPD:
     _out = [_in[0]]
     for frag in _in[1:]:
       try:
-        _out.extend([bytes([int(frag[:2], 16)]), frag[2:]])
+        _out.extend([bytes([int(frag[:2], 16)], 'latin-1'), frag[2:]])
       except ValueError:
         _out.extend([b'%', frag])
     try:
@@ -141,6 +141,40 @@ class HTTPD:
   def _mimetype(self, fn):
     return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
 
+  async def send_file_contents(self, conn, frame, method, path, hdrs, fn, fd):
+    # Abort the upload if the remote end closes the connection
+    saw_eof = [False]
+    def beware_eof(frame):
+      saw_eof[0] = saw_eof[0] or ('W' in frame.headers.get('EOF', ''))
+    conn.handlers[frame.sid] = beware_eof
+
+    # Send initial response
+    mimetype = self._mimetype(fn)
+    resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
+    await conn.reply(frame, resp, eof=False)
+
+    # Send the rest using an async "background" task
+    async def async_send_data(sent):
+      try:
+        while method != 'HEAD':
+          await fuzzy_sleep_ms(5)
+          data = fd.read(4096)
+          if data and not saw_eof[0]:
+            sent += len(data)
+            await conn.reply(frame, data, eof=False)
+          else:
+            await conn.reply(frame, eof=True)
+            break
+        self.log_request(frame, method, path, 200, sent, hdrs)
+      except Exception as e:
+        if self.uPK.debug:
+          self.uPK.debug('Exception in async_send_data: %s(%s)' % (type(e), e))
+      finally:
+        if fd is not None:
+          fd.close()
+        del conn.handlers[frame.sid]
+    asyncio.create_task(async_send_data(len(resp)))
+
   async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
     #        long running requests. This is just one-shot for now.
@@ -179,11 +213,11 @@ class HTTPD:
       except:
         pass
       try:
-        fd = open(filename, 'r')
+        fd = open(filename, 'rb')
       except:
         try:
           filename = self.webroot + '/404.py'
-          fd = open(filename, 'r')
+          fd = open(filename, 'rb')
         except:
           return await self._err(404, 'Not Found', method, path, conn, frame, headers)
     else:
@@ -215,7 +249,7 @@ class HTTPD:
         req_env.update(self.base_env)
         if fd:
           await fuzzy_sleep_ms(25)
-          exec(fd.read(), req_env)
+          exec(str(fd.read(), 'utf-8'), req_env)
         else:
           await fuzzy_sleep_ms()
           if func:
@@ -225,24 +259,13 @@ class HTTPD:
           if result:
             await fuzzy_sleep_ms()
             r(**result)
-
       else:
-        mimetype = self._mimetype(filename)
-        resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
-        await conn.reply(frame, resp, eof=False)
-        sent = len(resp)
-        while method != 'HEAD':
-          await fuzzy_sleep_ms()
-          data = fd.read(4096)
-          if data:
-            sent += len(data)
-            await conn.reply(frame, data, eof=False)
-          else:
-            await conn.reply(frame, eof=True)
-            break
-        self.log_request(frame, method, path, 200, sent, headers)
+        await self.send_file_contents(
+          conn, frame, method, path, headers, filename, fd)
+        fd = None
     except Exception as e:
-      print('Exception: %s' % e)
+      if self.uPK.debug:
+        self.uPK.debug('Exception in handle_http_request: %s(%s)' % (type(e), e))
       return await self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:
       if fd is not None:
