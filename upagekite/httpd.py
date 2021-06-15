@@ -19,8 +19,29 @@ from .proto import ilistdir, fuzzy_sleep_ms
 _HANDLERS_SYNC = {}
 _HANDLERS_ASYNC = {}
 
+_MIMETYPES = {
+  'css': 'text/css',
+  'gif': 'image/gif',
+  'htm': 'text/html; charset=utf-8',
+  'html': 'text/html; charset=utf-8',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'js': 'text/javascript',
+  'json': 'application/json',
+  'md': 'text/plain; charset=utf-8',
+  'pdf': 'application/pdf',
+  'txt': 'text/plain; charset=utf-8',
+  'xml': 'application/xml',
+  '_default': 'application/octet-stream'}
 
-# Decorators for registering functions as URL handlers
+
+# Method for registering new file-extension -> MIME type mappings
+def register_mime_extensions(**kwargs):
+  for k in kwargs:
+    _MIMETYPES[str(k).lower()] = kwargs[k]
+
+
+# Decorator for registering functions as URL handlers
 def url(*paths):
   def decorate(func):
     for path in paths:
@@ -29,6 +50,7 @@ def url(*paths):
   return decorate
 
 
+# Decorator for registering async functions as URL handlers
 def async_url(*paths):
   def decorate(func):
     for path in paths:
@@ -57,18 +79,6 @@ class HTTPD:
     'GET',
     'HEAD',
     'POST')
-  MIMETYPES = {
-    'css': 'text/css',
-    'gif': 'image/gif',
-    'htm': 'text/html; charset=utf-8',
-    'html': 'text/html; charset=utf-8',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'json': 'application/json',
-    'md': 'text/plain; charset=utf-8',
-    'pdf': 'application/pdf',
-    'txt': 'text/plain; charset=utf-8',
-    '_': 'application/octet-stream'}
 
   def __init__(self, name, webroot, env, uPK):
     self.uPK = uPK
@@ -126,7 +136,7 @@ class HTTPD:
     await conn.reply(frame, self.http_response(code, msg, 'text/plain')+msg+'\n')
 
   def _mimetype(self, fn):
-    return self.MIMETYPES.get(fn.rsplit('.', 1)[-1], self.MIMETYPES['_'])
+    return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
 
   async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
