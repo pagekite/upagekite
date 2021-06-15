@@ -22,34 +22,34 @@ _HANDLERS_ASYNC = {}
 
 # Decorators for registering functions as URL handlers
 def url(*paths):
-    def decorate(func):
-        for path in paths:
-            _HANDLERS_SYNC[path] = func
-        return func
-    return decorate
+  def decorate(func):
+    for path in paths:
+      _HANDLERS_SYNC[path] = func
+    return func
+  return decorate
 
 
 def async_url(*paths):
-    def decorate(func):
-        for path in paths:
-            _HANDLERS_ASYNC[path] = func
-        return func
-    return decorate
+  def decorate(func):
+    for path in paths:
+      _HANDLERS_ASYNC[path] = func
+    return func
+  return decorate
 
 
 # Helper class for navigating the request environment
 class ReqEnv(dict):
-    # Details about the client
-    remote_ip = property(lambda s: s['frame'].remote_ip)
+  # Details about the client
+  remote_ip = property(lambda s: s['frame'].remote_ip)
 
-    # Details about the HTTP request
-    query_vars = property(lambda s: dict(s['http_headers']['_qs']))
-    query_tuples = property(lambda s: s['http_headers']['_qs'])
-    request_path = property(lambda s: s['http_headers']['_path'])
-    http_method = property(lambda s: s['http_headers']['_method'])
-    http_headers = property(lambda s: s['http_headers'])
-    http_host = property(lambda s: s['frame'].host)
-    http_port = property(lambda s: s['frame'].port)
+  # Details about the HTTP request
+  query_vars = property(lambda s: dict(s['http_headers']['_qs']))
+  query_tuples = property(lambda s: s['http_headers']['_qs'])
+  request_path = property(lambda s: s['http_headers']['_path'])
+  http_method = property(lambda s: s['http_headers']['_method'])
+  http_headers = property(lambda s: s['http_headers'])
+  http_host = property(lambda s: s['frame'].host)
+  http_port = property(lambda s: s['frame'].port)
 
 
 class HTTPD:
