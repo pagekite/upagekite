@@ -75,6 +75,7 @@ class ReqEnv(dict):
   http_host = property(lambda s: s['frame'].host)
   http_port = property(lambda s: s['frame'].port)
   payload = property(lambda s: s['frame'].payload)
+  frame = property(lambda s: s['frame'])
 
 
 class HTTPD:
@@ -116,12 +117,13 @@ class HTTPD:
 
   def http_response(self, code, msg, mimetype, ttl=None, hdrs={}):
     return (
-        'HTTP/1.0 %d %s\r\n'
+        'HTTP/%s %d %s\r\n'
         'Server: %s\r\n'
-        'Content-Type: %s\r\n'
-        '%s%s\r\n'
+        '%s%s%s\r\n'
       ) % (
-        code, msg, self.uPK.APPURL, mimetype,
+        '1.1' if ('Upgrade' in hdrs) else '1.0',
+        code, msg, self.uPK.APPURL,
+        ('Content-Type: %s\r\n' % mimetype) if mimetype else '',
         ('Cache-Control: max-age=%d\r\n' % ttl) if ttl else '',
         ''.join('%s: %s\r\n' % (k, v) for k, v in hdrs.items()))
 
@@ -145,8 +147,8 @@ class HTTPD:
     # Abort the upload if the remote end closes the connection
     saw_eof = [False]
     def beware_eof(frame):
-      saw_eof[0] = saw_eof[0] or ('W' in frame.headers.get('EOF', ''))
-    conn.handlers[frame.sid] = beware_eof
+      saw_eof[0] = saw_eof[0] or ('W' in frame.eof)
+    conn.await_data(self.uPK, frame.sid, beware_eof, 0)
 
     # Send initial response
     mimetype = self._mimetype(fn)

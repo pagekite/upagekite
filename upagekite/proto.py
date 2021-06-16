@@ -142,8 +142,9 @@ class Kite:
 
 
 class Frame:
-  def __init__(self, uPK, data=None, headers=None, payload=None):
+  def __init__(self, uPK, data=None, headers=None, payload=None, cid=''):
     self.uPK = uPK
+    self.cid = cid
     if data:
       hdr_len = data.index(b'\r\n\r\n')
       hdr = str(data[:hdr_len], 'latin-1')
@@ -154,7 +155,9 @@ class Frame:
       self.headers = headers
       self.payload = payload
 
+  eof = property(lambda s: s.headers.get('EOF', ''))
   sid = property(lambda s: s.headers.get('SID'))
+  uid = property(lambda s: s.cid + s.headers.get('SID'))
   host = property(lambda s: s.headers.get('Host'))
   port = property(lambda s: s.headers.get('Port'))
   proto = property(lambda s: s.headers.get('Proto'))
@@ -166,7 +169,7 @@ class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
   APPVER = '0.0.1u'
-  PARSE_HTTP_HEADERS = re.compile('^(Host|User-Agent|Cookie|Content-(Length|Type)):')
+  PARSE_HTTP_HEADERS = re.compile('^(Connection|Cookie|Content-(Length|Type)|Host|Origin|Sec-WebSocket-(Key|Protocol|Version)|Upgrade|User-Agent):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
@@ -187,6 +190,8 @@ class uPageKiteDefaults:
   MAX_POST_BYTES = 64 * 1024
   MS_DELAY_PER_BYTE = 0.25
   RANDOM_PING_VALUES = False
+
+  WEBSOCKET_MASK = lambda: b'\0\0\0\0'
 
   GC_COLLECT = gc.collect  # Set to lambda: None to disable
   trace = False  # Set to log in subclass to enable noise

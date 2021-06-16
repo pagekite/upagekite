@@ -79,6 +79,18 @@ class LocalHTTPKite(Kite):
       else:
         break
 
+  async def async_await_data(self, uPK, sid, handler, nbytes):
+    self.sock.setblocking(False)
+    # FIXME: This should be a separate coroutine
+    while nbytes > 0:
+      more = self.client.read(min(2048, nbytes))
+      await handler(Frame(uPK, payload=more))
+      if more:
+        nbytes -= len(more)
+        await fuzzy_sleep_ms(int(len(more) * frame.uPK.MS_DELAY_PER_BYTE))
+      else:
+        break
+
   def close(self):
     if self.client is not None:
       self.client.close()
@@ -168,6 +180,11 @@ class uPageKiteConn:
     await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_ping())
 
   def await_data(self, uPK, sid, handler, nbytes):
+    async def async_handler(*args):
+      return handler(*args)
+    self.handlers[sid] = async_handler
+
+  async def async_await_data(self, uPK, sid, handler, nbytes):
     self.handlers[sid] = handler
 
   def close(self):
@@ -182,7 +199,7 @@ class uPageKiteConn:
       now = int(time.time())
       self.last_data_ts = now
       if frame:
-        frame = Frame(uPK, frame)
+        frame = Frame(uPK, frame, cid=('%d-' % self.fd.fileno()))
 
         if frame.ping:
           # Should never happen, as we send our own pings much more frequently
@@ -191,7 +208,7 @@ class uPageKiteConn:
         elif frame.sid and frame.sid in self.handlers:
           try:
             self.last_handle_ts = now
-            self.handlers[frame.sid](frame)
+            await self.handlers[frame.sid](frame)
           except Exception as e:
             print('Oops, sid handler: %s' % e)
             await self.reply(frame, eof=True)

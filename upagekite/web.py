@@ -7,8 +7,6 @@
 #
 # Commercial licenses are for sale. See the files README.md and COPYING.txt
 # for more details.
-#
-import gc
 
 
 # Decorator for making functions handle POSTed data
