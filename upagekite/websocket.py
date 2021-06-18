@@ -37,15 +37,18 @@ def websocket(ws_id=None, strict_origin=True):
     async def url_handler(req_env):
       hdrs = req_env['http_headers']
 
-      if strict_origin and (not hdrs.get('Host')
-          or (('://'+hdrs.get('Host', '')) not in hdrs.get('Origin', ''))):
-        return {'code': 403, 'msg': 'Forbidden'}
-
       if ((hdrs.get('Upgrade', '').lower() != 'websocket')
           or (not hdrs.get('Sec-WebSocket-Key'))
           or (hdrs.get('Sec-WebSocket-Protocol'))  # Unsupported!
           or (hdrs.get('Sec-WebSocket-Version', '') not in ('13', ))):
-        return {'code': 400, 'msg': 'Invalid Request'}
+        rv = None
+        if 'Upgrade' not in hdrs:
+          rv = await message_handler(None, None, None, None, websocket=False)
+        return rv or {'code': 400, 'msg': 'Invalid Request'}
+
+      if strict_origin and (not hdrs.get('Host')
+          or (('://'+hdrs.get('Host', '')) not in hdrs.get('Origin', ''))):
+        return {'code': 403, 'msg': 'Forbidden'}
 
       uPK = req_env['httpd'].uPK
       conn = req_env['conn']
@@ -109,7 +112,7 @@ class Websocket(object):
 
     wss = WebsocketStream(conn, frame, env, self.uPK, self.make_mask())
     self.streams[frame.uid] = wss
-    await conn.async_await_data(self.uPK, frame.sid, self.receive_data, 0)
+    conn.async_await_data(self.uPK, frame.sid, self.receive_data)
 
     async def welcome():
       await fuzzy_sleep_ms(25)
@@ -146,9 +149,16 @@ class Websocket(object):
 
   async def broadcast(self, msg, opcode=OPCODES.TEXT, only=None):
     msg = bytes(msg, 'utf-8') if (isinstance(msg, str)) else msg
-    for wss in self.streams.values():
+    dead = []
+    for k in self.streams:
+      wss = self.streams[k]
       if (only is None) or only(wss):
-        await wss.send(msg, opcode)
+        try:
+          await wss.send(msg, opcode)
+        except (KeyError, OSError):
+          dead.append(k)
+    for k in dead:
+      del self.streams[k]
 
 
 class WebsocketStream(object):

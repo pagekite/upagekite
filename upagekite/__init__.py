@@ -12,7 +12,8 @@ import gc
 import time
 import select
 
-from .proto import asyncio, socket, ticks_ms, fuzzy_sleep_ms, Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import asyncio, socket, ticks_ms, fuzzy_sleep_ms, print_exc
+from .proto import  Kite, Frame, EofTunnelError, uPageKiteDefaults
 
 
 try:
@@ -44,72 +45,107 @@ class LocalHTTPKite(Kite):
     except Exception as e:
       print("Oops, binding socket failed: %s" % e)
       self.fd = None
-    self.client = None
-    self.sock = None
+    self.conns = {}
 
   def __str__(self):
     return '<LocalHTTPKite(%s://%s):%d>' % (
       self.proto, self.name, self.listening_port)
 
   def sync_reply(self, frame, data=None, eof=True):
+    try:
+      sock, client = self.conns[frame.sid]
+    except KeyError:
+      print('**BUG?**  sync_reply(sid=%s), no conn found.' % frame.sid)
+      raise
     if data:
-      self.sock.setblocking(True)
-      self.client.write(bytes(data, 'latin-1'))
+      data = bytes(data, 'latin-1') if (isinstance(data, str)) else data
+      sock.setblocking(True)
+      client.write(data)
     if eof:
-      self.client.close()
-      self.client = None
+      del self.conns[frame.sid]
+      try:
+        client.close()
+      except:
+        pass
 
   async def reply(self, frame, data=None, eof=True):
     await fuzzy_sleep_ms()
+    self.sync_reply(frame, data, eof)
     if data:
-      self.sock.setblocking(True)
-      self.client.write(bytes(data, 'latin-1'))
       await fuzzy_sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
-    if eof:
-      self.client.close()
-      self.client = None
 
-  def await_data(self, uPK, sid, handler, nbytes):
-    self.sock.setblocking(False)
-    while nbytes > 0:
-      more = self.client.read(min(2048, nbytes))
-      handler(Frame(uPK, payload=more))
-      if more:
-        nbytes -= len(more)
-      else:
-        break
+  def await_data(self, uPK, sid, handler, nbytes=-1):
+    async def async_handler(*args):
+      return handler(*args)
+    self.async_await_data(uPK, sid, async_handler, nbytes=-1)
 
-  async def async_await_data(self, uPK, sid, handler, nbytes):
-    self.sock.setblocking(False)
-    # FIXME: This should be a separate coroutine
-    while nbytes > 0:
-      more = self.client.read(min(2048, nbytes))
-      await handler(Frame(uPK, payload=more))
-      if more:
-        nbytes -= len(more)
-        await fuzzy_sleep_ms(int(len(more) * frame.uPK.MS_DELAY_PER_BYTE))
-      else:
-        break
+  def async_await_data(self, uPK, sid, handler, nbytes=-1):
+    sock = client = None
+    # FIXME: We should be using asyncio sockets here, or add to our own
+    #        event loop instead of this ugly hack. But it works, so...
+    async def async_wait_job(nbytes):
+      try:
+        sock, client = self.conns[sid]
+        poller = select.poll()
+        poller.register(client, select.POLLIN)
+        while nbytes:
+          readable = error = False
+          for (obj, ev) in poller.poll(1):
+            if (ev & select.POLLIN):
+              readable = True
+            else:
+              error = True
+          uPK.GC_COLLECT()
+          if readable:
+            sock.setblocking(False)
+            more = client.read(min(2048, nbytes if (nbytes > 0) else 2048))
+            await handler(Frame(uPK, payload=more, headers={
+              'SID': sid,
+              'EOF': '1WR' if (not more) else ''}))
+            if more:
+              if nbytes > 0:
+                nbytes -= len(more)
+              await fuzzy_sleep_ms(max(10, int(len(more) * uPK.MS_DELAY_PER_BYTE)))
+            else:
+              break
+          elif error:
+            break
+          else:
+            await fuzzy_sleep_ms(50)
+      finally:
+        if sid in self.conns:
+          del self.conns[sid]
+        if client:
+          client.close()
+    asyncio.create_task(async_wait_job(nbytes))
 
-  def close(self):
-    if self.client is not None:
-      self.client.close()
-    elif self.sock is not None:
-      self.sock.close()
-    self.sock = self.client = None
+  def close(self, sid=None):
+    for sid in ([sid] if (sid is not None) else list(self.conns.keys())):
+      try:
+        sock, client = self.conns[sid]
+        if client is not None:
+          client.close()
+        elif sock is not None:
+          sock.close()
+        del self.conns[sid]
+      except KeyError:
+        pass
 
   async def process_io(self, uPK):
-    self.sock = None
+    sid = sock = client = None
     try:
-      self.sock, addr = self.fd.accept()
-      if hasattr(self.sock, 'makefile'):
-        self.client = self.sock.makefile('rwb')
+      sock, addr = self.fd.accept()
+      if hasattr(sock, 'makefile'):
+        client = sock.makefile('rwb')
       else:
-        self.sock = self.client
+        client = sock
+
+      sid = '%s' % (sock.fileno(),)
+      self.conns[sid] = (sock, client)
 
       if uPK.trace:
         uPK.trace('Reading request from: %s' % (addr,))
-      self.sock.setblocking(False)
+      sock.setblocking(False)
       req = b''
       deadline = ticks_ms() + 500  # When to give up on data
       sleep_t = 20
@@ -117,7 +153,7 @@ class LocalHTTPKite(Kite):
         await fuzzy_sleep_ms(min(sleep_t, 50))
         sleep_t += 5
         try:
-          data = self.client.read(2048)
+          data = client.read(2048)
           if data is not None:
             req += data
         except socket.error:
@@ -127,12 +163,14 @@ class LocalHTTPKite(Kite):
         uPK.trace('Got local request: %s' % (req,))
       if b'\r\n\r\n' in req:
         await self.handler(self, self, Frame(uPK, payload=req, headers={
+          'SID': sid,
           'Host': '0.0.0.0',
           'Proto': 'http',
           'Port': self.listening_port,
           'RIP': '::ffff:%s' % (addr[0],)}))
+        sid = None  # Avoid the close below
       else:
-        self.client.write(b'HTTP/1.0 408 Timed out\r\n\r\n')
+        client.write(b'HTTP/1.0 408 Timed out\r\n\r\n')
 
     except KeyboardInterrupt:
       raise
@@ -140,7 +178,8 @@ class LocalHTTPKite(Kite):
       print('Oops, process_io: %s' % e)
       return False
     finally:
-      self.close()
+      if sid:
+        self.close(sid)
 
     return True
 
@@ -179,12 +218,12 @@ class uPageKiteConn:
   async def send_ping(self):
     await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_ping())
 
-  def await_data(self, uPK, sid, handler, nbytes):
+  def await_data(self, uPK, sid, handler, nbytes=-1):
     async def async_handler(*args):
       return handler(*args)
-    self.handlers[sid] = async_handler
+    self.async_await_data(uPK, sid, async_handler, nbytes)
 
-  async def async_await_data(self, uPK, sid, handler, nbytes):
+  def async_await_data(self, uPK, sid, handler, nbytes=None):
     self.handlers[sid] = handler
 
   def close(self):
@@ -404,7 +443,8 @@ class uPageKite:
     except KeyboardInterrupt:
       raise
     except Exception as e:
-      print('Oops, relay_loop: %s' % e)
+      print_exc(e)
+      print('Oops, relay_loop: %s(%s)' % (type(e), e))
 
     # We've fallen through to our unhappy ending, clean up
     for conn in conns:

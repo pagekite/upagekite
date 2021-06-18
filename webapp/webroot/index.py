@@ -1,20 +1,21 @@
 # This file from the uPageKite distribution is placed in the Public Domain.
 # Remix at will!
 
+import gc
+
+flash_size = 'unknown'
 try:
   import esp
   flash_size = '%d' % (esp.flash_size(),)
 except:
-  flash_size = 'unknown'
+  pass
 
+mhz = 'unknown'
 try:
   import machine
   mhz = '%.2fMhz' % (float(machine.freq()) / 1000000.0,)
 except:
-  mhz = 'unknown'
-
-import gc
-gc.collect()
+  pass
 
 
 def say_something(what, foobar='okay'):
@@ -44,6 +45,7 @@ send_http_response(
   <p>
     See also:
     <a href="/hello/">hello</a>,
+    <a href="/websocket/">websocket</a>,
     <a href="/post.py">post</a>,
     <a onclick='return confirm("Are you sure?");' href="/reboot.py">reboot</a>,
     <a onclick='return confirm("Are you sure?");' href="/reset.py">reset</a>
@@ -55,7 +57,7 @@ send_http_response(
   <p><tt>WiFi SSID: %s</tt></p>
 </body></html>
 """) % (
-  open('bootstrap/webroot/default.css').read(),  # Inline the CSS
+  open('/webroot/default.css').read(),  # Inline the CSS
   kite.name,
   time.time(),
   frame.remote_ip,
@@ -64,4 +66,5 @@ send_http_response(
   gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown',
   ('%s' % http_headers).replace('<', '&lt;'),
   (', '.join(dir())).replace('<', '&lt;'),
-  app['settings'].get('ssid', 'unknown')))
+  app.get('settings', {}).get('ssid', 'unknown')))
+

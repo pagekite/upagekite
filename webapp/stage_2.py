@@ -5,7 +5,8 @@ import sys
 import time
 import upagekite
 import upagekite.httpd
-from upagekite.proto import sleep_ms, ticks_ms
+import upagekite.websocket
+from upagekite.proto import upk_open
 try:
   from boot import settings
 except:
@@ -27,31 +28,37 @@ else:
   CAPTIVE_IP = '192.168.4.1'
 
 
-@upagekite.httpd.async_url('/builtin')
+@upagekite.httpd.async_url('/builtin', '/builtin/')
 async def slash_builtin(env):
-  await sleep_ms(1)
   return {
-    'mimetype': 'text/plain',
-    'ttl': 60,
-    'body': 'This is a built-in Python web endpoint\n'}
+    'body': 'This is a built-in Python web endpoint\n',
+    'mimetype': 'text/plain; charset=us-ascii',
+    'ttl': 60}
+
+
+@upagekite.httpd.async_url('/websocket', '/websocket/')
+@upagekite.websocket.websocket('test')
+async def ws_test(opcode, msg, conn, ws, first=False, eof=False, websocket=True):
+  if not websocket:
+    return {'body': upk_open('/webroot/websocket.html').read()}
+
+  if first:
+    await conn.send('Welcome, %s, to the Websocket Echo Chamber!' % conn.uid)
+    await ws.broadcast('%s (%s) has joined us!' % (conn.uid, conn.remote_ip))
+  elif msg and (opcode == upagekite.websocket.OPCODES.TEXT):
+    await ws.broadcast('%s said: %s' % (conn.uid, msg))
+  elif eof:
+    await ws.broadcast('%s left.' % conn.uid)
 
 
 class MyProto(upagekite.uPageKiteDefaults):
   # Disable watchdog
-  WATCHDOG_TIMEOUT = 45000
+  WATCHDOG_TIMEOUT = None
 
-  trace = upagekite.uPageKiteDefaults.log
+  #trace = upagekite.uPageKiteDefaults.log
   debug = upagekite.uPageKiteDefaults.log
   info  = upagekite.uPageKiteDefaults.log
   error = upagekite.uPageKiteDefaults.log
-
-
-class MyPageKite(upagekite.uPageKite):
-  async def tick(self, *args, **kwargs):
-    # Add a decoration to the tick log-line, run the standard tick.
-    #kwargs['my'] = 'demo'
-    await upagekite.uPageKite.tick(self, *args, **kwargs)
-    # More periodic jobs here?
 
 
 def captive_portal(env, httpd):
@@ -112,30 +119,14 @@ def get_upk():
   print()
   time.sleep(2)
 
-  upk = MyPageKite(env['kites'], socks=env['socks'], uPK=MyProto)
+  upk = upagekite.uPageKite(env['kites'], socks=env['socks'], uPK=MyProto)
   env['upagekite'] = upk  # Expose to page logic
   return upk
-
-
-from upagekite.proto import sleep_ms, ticks_ms
-async def timer_latency_test():
-  first_tick = ticks_ms() + 100
-  counter = 0
-  while True:
-    next_tick = first_tick + (counter*100)
-    await sleep_ms(max(1, next_tick - ticks_ms()))
-    now = ticks_ms()
-    if (now - next_tick > 25) or (counter % 10 == 9):
-      print('Tick delayed by: %sms' % (now - next_tick))
-    while next_tick <= now:
-      counter += max(1, (now - next_tick) // 100)
-      next_tick = first_tick + (counter*100)
 
 
 if __name__ == "__main__":
   import gc
   from upagekite.proto import asyncio
-  asyncio.get_event_loop().create_task(timer_latency_test())
   upk = get_upk()
   del get_upk
   del captive_portal

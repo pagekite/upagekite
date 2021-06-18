@@ -12,6 +12,8 @@
     "upagekite/xml_gen.py": true,
     "upagekite/captive.py": true,
     "webapp/stage_2.py": "stage_2.py",
+    "webapp/webroot/websocket.html": "webroot/websocket.html",
+    "webapp/webroot/robots.txt": "webroot/robots.txt",
     "webapp/webroot/index.py": "webroot/index.py",
     "webapp/webroot/post.py": "webroot/post.py",
     "webapp/webroot/reboot.py": "webroot/reboot.py",

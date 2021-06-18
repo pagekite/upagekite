@@ -13,7 +13,7 @@ import sys
 import time
 import json
 
-from .proto import asyncio, ilistdir, fuzzy_sleep_ms
+from .proto import print_exc, asyncio, ilistdir, upk_open, fuzzy_sleep_ms
 
 
 _HANDLERS_SYNC = {}
@@ -148,7 +148,7 @@ class HTTPD:
     saw_eof = [False]
     def beware_eof(frame):
       saw_eof[0] = saw_eof[0] or ('W' in frame.eof)
-    conn.await_data(self.uPK, frame.sid, beware_eof, 0)
+    conn.await_data(self.uPK, frame.sid, beware_eof)
 
     # Send initial response
     mimetype = self._mimetype(fn)
@@ -163,24 +163,31 @@ class HTTPD:
           data = fd.read(4096)
           if data and not saw_eof[0]:
             sent += len(data)
-            await conn.reply(frame, data, eof=False)
+            try:
+              await conn.reply(frame, data, eof=False)
+            except (OSError, IOError):
+              await conn.reply(frame, eof=True)
+              break
           else:
             await conn.reply(frame, eof=True)
             break
         self.log_request(frame, method, path, 200, sent, hdrs)
       except Exception as e:
         if self.uPK.debug:
+          print_exc(e)
           self.uPK.debug('Exception in async_send_data: %s(%s)' % (type(e), e))
       finally:
         if fd is not None:
           fd.close()
-        del conn.handlers[frame.sid]
+        if frame.sid in conn.handlers:
+          del conn.handlers[frame.sid]
     asyncio.create_task(async_send_data(len(resp)))
 
   async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
     #        long running requests. This is just one-shot for now.
     method = path = '-'
+    self.uPK.GC_COLLECT()
     try:
       headers = frame.payload.split(b'\r\n\r\n', 1)[0]
       request, headers = str(headers, 'latin-1').split('\r\n', 1)
@@ -242,24 +249,26 @@ class HTTPD:
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
-        req_env = ReqEnv({
-          'time': time, 'os': os, 'sys': sys, 'json': json,
+        req_env = {
+          'time': time, 'os': os, 'sys': sys, 'json': json, 'open': upk_open,
           'httpd': self, 'kite': kite, 'conn': conn, 'frame': frame,
           'send_http_response': r,
           'postpone_action': p,
-          'http_headers': headers})
+          'http_headers': headers}
         req_env.update(self.base_env)
         if fd:
           await fuzzy_sleep_ms(25)
-          exec(str(fd.read(), 'utf-8'), req_env)
+          code = str(fd.read(), 'utf-8')
+          self.uPK.GC_COLLECT()
+          exec(code, req_env)
         else:
           await fuzzy_sleep_ms()
           if func:
-            result = func(req_env)
+            result = func(ReqEnv(req_env))
           else:
-            result = await func_async(req_env)
+            result = await func_async(ReqEnv(req_env))
           if result:
-            await fuzzy_sleep_ms()
+            await fuzzy_sleep_ms(1)
             r(**result)
       else:
         await self.send_file_contents(
@@ -267,6 +276,7 @@ class HTTPD:
         fd = None
     except Exception as e:
       if self.uPK.debug:
+        print_exc(e)
         self.uPK.debug('Exception in handle_http_request: %s(%s)' % (type(e), e))
       return await self._err(500, 'Server Error', method, path, conn, frame, headers)
     finally:

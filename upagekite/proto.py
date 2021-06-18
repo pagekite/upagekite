@@ -37,6 +37,11 @@ except ImportError:
     import asyncio
 
 try:
+    from sys import print_exception as print_exc
+except ImportError:
+    from traceback import print_exc
+
+try:
   from time import ticks_ms
 except ImportError:
   def ticks_ms():
@@ -116,6 +121,15 @@ except ImportError:
     return (s, s.makefile("rwb", 0))
 
 
+def upk_open(path, mode='r'):
+  for root in ('/bootstrap_live', '/bootstrap', ''):
+    try:
+      return open(root + path, mode)
+    except OSError:
+      pass
+  raise
+
+
 class RejectedError(ValueError):
   pass
 
@@ -144,7 +158,7 @@ class Kite:
 class Frame:
   def __init__(self, uPK, data=None, headers=None, payload=None, cid=''):
     self.uPK = uPK
-    self.cid = cid
+    self.cid = '%s' % (cid,)
     if data:
       hdr_len = data.index(b'\r\n\r\n')
       hdr = str(data[:hdr_len], 'latin-1')
@@ -169,7 +183,7 @@ class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
   APPVER = '0.0.1u'
-  PARSE_HTTP_HEADERS = re.compile('^(Connection|Cookie|Content-(Length|Type)|Host|Origin|Sec-WebSocket-(Key|Protocol|Version)|Upgrade|User-Agent):')
+  PARSE_HTTP_HEADERS = re.compile('^(Co(n(nection|tent-\S+)|okie)|Host|Origin|Sec-WebSocket-\S+|U(pgrade|ser-Agent)):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
@@ -185,7 +199,7 @@ class uPageKiteDefaults:
   TICK_INTERVAL = 16
   MIN_CHECK_INTERVAL = 16
   MAX_CHECK_INTERVAL = 900
-  WATCHDOG_TIMEOUT = 5000
+  WATCHDOG_TIMEOUT = 60000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
   MS_DELAY_PER_BYTE = 0.25

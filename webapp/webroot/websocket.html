@@ -1,0 +1,23 @@
+<html><head>
+  <title>Websocket test</title>
+  <script type="text/javascript" nonce="2021">
+    var host = document.location.host;
+    var wsp = (document.location.protocol == 'http:') ? 'ws' : 'wss';
+    const socket = new WebSocket(wsp + '://' + host + '/websocket');
+    socket.onopen = function () {
+      setInterval(function() {
+        socket.send('I am alive');
+      }, 10000);
+    };
+    socket.onmessage = function(event) {
+      var container = document.getElementById('incoming');
+      container.innerHTML += '<pre>'+event.data+'</pre>';
+    };
+    setInterval(function() {
+      document.getElementById('incoming').innerHTML = '<p>Cleared</p>';
+    }, 10 * 6000);
+  </script>
+</head><body>
+  <h1>Hello Websocket World</h1>
+  <div id="incoming"></div>
+</body></html>
