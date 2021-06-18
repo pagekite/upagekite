@@ -43,6 +43,7 @@ class LocalHTTPKite(Kite):
       self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
       self.fd.listen(5)
     except Exception as e:
+      print_exc(e)
       print("Oops, binding socket failed: %s" % e)
       self.fd = None
     self.conns = {}
@@ -61,7 +62,11 @@ class LocalHTTPKite(Kite):
       data = bytes(data, 'latin-1') if (isinstance(data, str)) else data
       sock.setblocking(True)
       client.write(data)
+      if hasattr(client, 'flush'):
+        client.flush()
     if eof:
+      if frame.sid in self.handlers:
+        del self.handlers[frame.sid]
       del self.conns[frame.sid]
       try:
         client.close()
@@ -70,7 +75,7 @@ class LocalHTTPKite(Kite):
 
   async def reply(self, frame, data=None, eof=True):
     await fuzzy_sleep_ms()
-    self.sync_reply(frame, data, eof)
+    self.sync_reply(frame, data=data, eof=eof)
     if data:
       await fuzzy_sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
 
@@ -87,13 +92,13 @@ class LocalHTTPKite(Kite):
       try:
         sock, client = self.conns[sid]
         poller = select.poll()
-        poller.register(client, select.POLLIN)
-        while nbytes:
+        poller.register(sock)
+        while nbytes and (sid in self.handlers):
           readable = error = False
           for (obj, ev) in poller.poll(1):
             if (ev & select.POLLIN):
               readable = True
-            else:
+            if ev - (ev & (select.POLLIN|select.POLLOUT|select.POLLPRI)):
               error = True
           uPK.GC_COLLECT()
           if readable:
@@ -113,10 +118,13 @@ class LocalHTTPKite(Kite):
           else:
             await fuzzy_sleep_ms(50)
       finally:
+        if sid in self.handlers:
+          del self.handlers[sid]
         if sid in self.conns:
           del self.conns[sid]
         if client:
           client.close()
+    self.handlers[sid] = True
     asyncio.create_task(async_wait_job(nbytes))
 
   def close(self, sid=None):
@@ -175,6 +183,7 @@ class LocalHTTPKite(Kite):
     except KeyboardInterrupt:
       raise
     except Exception as e:
+      print_exc(e)
       print('Oops, process_io: %s' % e)
       return False
     finally:
@@ -249,6 +258,7 @@ class uPageKiteConn:
             self.last_handle_ts = now
             await self.handlers[frame.sid](frame)
           except Exception as e:
+            print_exc(e)
             print('Oops, sid handler: %s' % e)
             await self.reply(frame, eof=True)
             if frame.sid in self.handlers:

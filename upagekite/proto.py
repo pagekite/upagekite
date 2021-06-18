@@ -37,9 +37,11 @@ except ImportError:
     import asyncio
 
 try:
-    from sys import print_exception as print_exc
+    from sys import print_exception
 except ImportError:
-    from traceback import print_exc
+    from traceback import print_exc as _print_exc
+    def print_exc(e):
+      return _print_exc()
 
 try:
   from time import ticks_ms
