@@ -8,6 +8,8 @@
     "upagekite/httpd.py": true,
     "upagekite/web.py": true,
     "upagekite/web_mpfd.py": true,
+    "upagekite/websocket.py": true,
+    "upagekite/xml_gen.py": true,
     "upagekite/captive.py": true,
     "webapp/stage_2.py": "stage_2.py",
     "webapp/webroot/index.py": "webroot/index.py",
