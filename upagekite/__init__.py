@@ -13,7 +13,8 @@ import time
 import select
 
 from .proto import asyncio, socket, ticks_ms, fuzzy_sleep_ms, print_exc
-from .proto import  Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import Kite, Frame, EofTunnelError, uPageKiteDefaults
+from .proto import SELECT_POLL_IN
 
 
 try:
@@ -96,9 +97,9 @@ class LocalHTTPKite(Kite):
         while nbytes and (sid in self.handlers):
           readable = error = False
           for (obj, ev) in poller.poll(1):
-            if (ev & select.POLLIN):
+            if (ev & SELECT_POLL_IN):
               readable = True
-            if ev - (ev & (select.POLLIN|select.POLLOUT|select.POLLPRI)):
+            if ev - (ev & (SELECT_POLL_IN|select.POLLOUT)):
               error = True
           uPK.GC_COLLECT()
           if readable:
@@ -317,7 +318,7 @@ class uPageKiteConnPool:
       self.pk.uPK.trace('Entering poll(%d)' % timeout_ms)
 
     for (obj, event) in await self.async_poll(timeout_ms):
-      if (event & select.POLLIN) or (event & select.POLLPRI):
+      if (event & SELECT_POLL_IN):
         conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
         if self.pk.uPK.trace:
           self.pk.uPK.trace('process_io(%s)' % conn)

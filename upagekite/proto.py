@@ -37,7 +37,12 @@ except ImportError:
     import asyncio
 
 try:
-    from sys import print_exception
+    SELECT_POLL_IN = (select.POLLPRI | select.POLLIN)
+except AttributeError:
+    SELECT_POLL_IN = (select.POLLIN)
+
+try:
+    from sys import print_exception as print_exc
 except ImportError:
     from traceback import print_exc as _print_exc
     def print_exc(e):
