@@ -166,7 +166,7 @@ class HTTPD:
             sent += len(data)
             try:
               await conn.reply(frame, data, eof=False)
-            except (OSError, IOError):
+            except:
               await conn.reply(frame, eof=True)
               break
           else:
