@@ -51,6 +51,10 @@ def websocket(ws_id=None, strict_origin=True):
         return {'code': 403, 'msg': 'Forbidden'}
 
       uPK = req_env['httpd'].uPK
+      live_conns = sum([len(ws.streams) for ws in _WEBSOCKETS.values()])
+      if live_conns >= uPK.WEBSOCKET_MAX_CONNS:
+        return {'code': 503, 'msg': 'Too Many Clients'}
+
       conn = req_env['conn']
       frame = req_env['frame']
 
@@ -122,9 +126,11 @@ class Websocket(object):
   def unsubscribe(self, uid):
     # FIXME: Stop awaiting data
     if uid in self.streams:
+      wss = self.streams[uid]
       if self.uPK.info:
-        ip = self.streams[uid].frame.remote_ip
+        ip = wss.frame.remote_ip
         self.uPK.info('[ws/%s] Unsubscribe %s %s' % (self.ws_id, uid, ip))
+      wss.conn.close(wss.frame.sid)
       del self.streams[uid]
 
   async def receive_data(self, frame):

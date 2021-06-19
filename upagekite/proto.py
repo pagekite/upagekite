@@ -33,8 +33,10 @@ _DNS_HINTS = {}
 
 try:
     import uasyncio as asyncio
+    IS_MICROPYTHON = True
 except ImportError:
     import asyncio
+    IS_MICROPYTHON = False
 
 try:
     SELECT_POLL_IN = (select.POLLPRI | select.POLLIN)
@@ -100,17 +102,21 @@ try:
     if uPK.trace:
       uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
     s = socket.socket()
-    s.settimeout(timeouts[0])
-    await fuzzy_sleep_ms()
-    s.connect(addr)
-    s.settimeout(timeouts[1])
-    await fuzzy_sleep_ms()
-    if ssl_wrap:
-      uPK.GC_COLLECT()
-      await fuzzy_sleep_ms(30)
-      return (s, ssl.wrap_socket(s))
-    await fuzzy_sleep_ms()
-    return (s, s)
+    try:
+      s.settimeout(timeouts[0])
+      await fuzzy_sleep_ms()
+      s.connect(addr)
+      s.settimeout(timeouts[1])
+      await fuzzy_sleep_ms()
+      if ssl_wrap:
+        uPK.GC_COLLECT()
+        await fuzzy_sleep_ms(30)
+        return (s, ssl.wrap_socket(s))
+      await fuzzy_sleep_ms()
+      return (s, s)
+    except:
+      s.close()
+      raise
 except ImportError:
   import socket
   async def sock_connect_stream(uPK, addr, ssl_wrap=False, timeouts=(20, 300)):
@@ -209,12 +215,14 @@ class uPageKiteDefaults:
   WATCHDOG_TIMEOUT = 60000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
-  MS_DELAY_PER_BYTE = 0.25
+  MS_DELAY_PER_BYTE = (0.25 if IS_MICROPYTHON else 0.01)
   RANDOM_PING_VALUES = False
 
   WEBSOCKET_MASK = lambda: b'\0\0\0\0'
+  WEBSOCKET_MAX_CONNS = (5 if IS_MICROPYTHON else 100)
 
-  GC_COLLECT = gc.collect  # Set to lambda: None to disable
+  # Set to lambda: None to disable
+  GC_COLLECT = (gc.collect if IS_MICROPYTHON else (lambda: None))
   trace = False  # Set to log in subclass to enable noise
   debug = False  # Set to log in subclass to enable noise
   info = False   # Set to log in subclass to enable noise
