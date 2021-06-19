@@ -13,8 +13,7 @@ import sys
 import time
 import json
 
-from .proto import IOError, print_exc, asyncio, ilistdir, upk_open
-from .proto import fuzzy_sleep_ms
+from .proto import print_exc, asyncio, ilistdir, upk_open, fuzzy_sleep_ms
 
 
 _HANDLERS_SYNC = {}
