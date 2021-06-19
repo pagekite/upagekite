@@ -86,10 +86,10 @@ class LocalHTTPKite(Kite):
     self.async_await_data(uPK, sid, async_handler, nbytes=-1)
 
   def async_await_data(self, uPK, sid, handler, nbytes=-1):
-    sock = client = None
     # FIXME: We should be using asyncio sockets here, or add to our own
     #        event loop instead of this ugly hack. But it works, so...
     async def async_wait_job(nbytes):
+      sock = client = None
       try:
         sock, client = self.conns[sid]
         poller = select.poll()
@@ -118,6 +118,8 @@ class LocalHTTPKite(Kite):
             break
           else:
             await fuzzy_sleep_ms(50)
+      except Exception as e:
+        print_exc(e)
       finally:
         if sid in self.handlers:
           del self.handlers[sid]
@@ -129,27 +131,35 @@ class LocalHTTPKite(Kite):
     asyncio.create_task(async_wait_job(nbytes))
 
   def close(self, sid=None):
-    for sid in ([sid] if (sid is not None) else list(self.conns.keys())):
-      try:
-        sock, client = self.conns[sid]
-        if client is not None:
-          client.close()
-        elif sock is not None:
-          sock.close()
-        del self.conns[sid]
-      except KeyError:
-        pass
+    for _sid in ([sid] if (sid is not None) else list(self.conns.keys())):
+      sock, client = self.conns.get(_sid, (None, None))
+      if _sid in self.handlers:
+        del self.handlers[_sid]
+      if _sid in self.conns:
+        del self.conns[_sid]
+      if client is not None:
+        client.close()
+      elif sock is not None:
+        sock.close()
+    if sid is None:
+      self.handlers = {}
+      self.conns = {}
+      self.fd.close()
 
   async def process_io(self, uPK):
     sid = sock = client = None
     try:
       sock, addr = self.fd.accept()
+    except OSError as e:
+      print_exc(e)
+      return True
+
+    try:
+      sid = '%s-%x' % (sock.fileno(), ticks_ms())
       if hasattr(sock, 'makefile'):
         client = sock.makefile('rwb')
       else:
         client = sock
-
-      sid = '%s' % (sock.fileno(),)
       self.conns[sid] = (sock, client)
 
       if uPK.trace:
@@ -236,11 +246,19 @@ class uPageKiteConn:
   def async_await_data(self, uPK, sid, handler, nbytes=None):
     self.handlers[sid] = handler
 
-  def close(self):
-    self.handlers = {}
-    if self.fd is not None:
-      self.fd.close()
-      self.fd = None
+  def close(self, sid=None):
+    if not sid:
+      self.handlers = {}
+      if self.conn is not None:
+        self.conn.close()
+        self.conn = None
+      if self.fd is not None:
+        self.fd.close()
+        self.fd = None
+    else:
+      # FIXME: Send EOF over tunnel?
+      if sid in self.handlers:
+        del self.handlers[sid]
 
   async def process_io(self, uPK):
     try:
