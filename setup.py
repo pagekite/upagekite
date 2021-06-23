@@ -24,7 +24,7 @@ from the author.""",
   author = 'Bjarni R. Einarsson',
   author_email = 'bre@pagekite.net',
   url = 'https://github.com/pagekite/upagekite',
-  download_url = 'https://github.com/pagekite/upagekite/archive/refs/tags/v0.1.0u.tar.gz',
+  download_url = 'https://codeload.github.com/pagekite/upagekite/tar.gz/refs/tags/v0.1.0u',
   keywords = ['pagekite', 'http', 'websocket', 'esp32', 'micropython'],
   install_requires=[],
   classifiers=[
