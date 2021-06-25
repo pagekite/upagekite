@@ -163,8 +163,11 @@ class HTTPD:
         iterator, first_reply, conn, frame, method, path, hdrs, _close=[]):
     # Abort the upload if the remote end closes the connection
     saw_eof = [False]
+    progress = [0]
     def beware_eof(frm):
       saw_eof[0] = saw_eof[0] or ('W' in frm.eof)
+      if 'SKB' in frm.headers:
+        progress[0] = int(frm.headers['SKB'])
 
     # Iteratively send our data
     async def async_send_data():
@@ -191,8 +194,12 @@ class HTTPD:
           if saw_eof[0]:
             break
           await conn.reply(frame, data, eof=False)
-          await fuzzy_sleep_ms(min(sent // 40960, 15))
           sent += len(data)
+          # Avoid buffer bloat
+          while (progress[0]
+                and not saw_eof[0]
+                and (progress[0] * 1024) < (sent - 16*1024)):
+            await fuzzy_sleep_ms(50)
 
       except Exception as e:
         code = '-'
