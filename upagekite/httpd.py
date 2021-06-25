@@ -16,8 +16,7 @@ import json
 from .proto import print_exc, asyncio, ilistdir, upk_open, fuzzy_sleep_ms
 
 
-_HANDLERS_SYNC = {}
-_HANDLERS_ASYNC = {}
+_HANDLERS = {}
 
 _MIMETYPES = {
   'css': 'text/css',
@@ -42,21 +41,23 @@ def register_mime_extensions(**kwargs):
 
 
 # Decorator for registering functions as URL handlers
-def url(*paths):
+def url(*paths, **attrs):
   def decorate(func):
     for path in paths:
-      _HANDLERS_SYNC[path] = func
+      _HANDLERS[path] = (func, attrs)
     return func
   return decorate
 
 
 # Decorator for registering async functions as URL handlers
-def async_url(*paths):
-  def decorate(func):
-    for path in paths:
-      _HANDLERS_ASYNC[path] = func
-    return func
-  return decorate
+def async_url(*paths, **attrs):
+  attrs['_async'] = True
+  return url(*paths, **attrs)
+
+
+# Helper to look up a mimetype
+def filename_to_mimetype(fn):
+  return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
 
 
 # Helper to detect the end of an iteration
@@ -78,7 +79,6 @@ def _read_fd_iterator(fd, readsize, first_item=None):
       yield data
     else:
       break
-
 
 # Helper class for navigating the request environment
 class ReqEnv(dict):
@@ -161,9 +161,6 @@ class HTTPD:
     self.log_request(frame, method, path, code, headers=headers)
     await conn.reply(frame, self.http_response(code, msg, 'text/plain')+msg+'\n')
 
-  def _mimetype(self, fn):
-    return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
-
   async def background_send(self,
         iterator, first_reply, conn, frame, method, path, hdrs, _close=[]):
     # Abort the upload if the remote end closes the connection
@@ -228,12 +225,11 @@ class HTTPD:
     except Exception as e:
       return await self._err(400, 'Invalid request', method, path, conn, frame)
 
-    func = _HANDLERS_SYNC.get(path)
-    func_async = _HANDLERS_ASYNC.get(path)
+    func, func_attrs = _HANDLERS.get(path, (None, None))
     filename = self.webroot + path
 
     await fuzzy_sleep_ms()
-    if func is None and func_async is None:
+    if func is None:
       try:
         ls = [l[0] for l in ilistdir(filename)]
         if 'index.py' in ls:
@@ -271,7 +267,7 @@ class HTTPD:
       def postpone_action(func, *args, **kwargs):
         postponed.append((func, args, kwargs))
 
-      if func or func_async or filename.endswith('.py'):
+      if func or filename.endswith('.py'):
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
@@ -289,10 +285,10 @@ class HTTPD:
           exec(code, req_env)
         else:
           await fuzzy_sleep_ms()
-          if func:
-            result = func(ReqEnv(req_env))
+          if func_attrs.get('_async'):
+            result = await func(ReqEnv(req_env))
           else:
-            result = await func_async(ReqEnv(req_env))
+            result = func(ReqEnv(req_env))
           if result:
             if isinstance(result, dict):
               await fuzzy_sleep_ms(1)
@@ -306,7 +302,7 @@ class HTTPD:
         await self.background_send(
           _read_fd_iterator(fd, 2048,
             first_item={
-              'mimetype': self._mimetype(filename),
+              'mimetype': filename_to_mimetype(filename),
               'ttl': self.static_max_age}),
           first_reply, conn, frame, method, path, headers, _close=[fd])
         fd = None
