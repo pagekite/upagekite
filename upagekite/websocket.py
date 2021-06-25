@@ -121,7 +121,7 @@ class Websocket(object):
     async def welcome():
       await fuzzy_sleep_ms(25)
       await self.message_handler(None, None, wss, self, first=True)
-    asyncio.create_task(welcome())
+    asyncio.get_event_loop().create_task(welcome())
 
   def unsubscribe(self, uid):
     # FIXME: Stop awaiting data

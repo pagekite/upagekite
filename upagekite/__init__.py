@@ -57,8 +57,9 @@ class LocalHTTPKite(Kite):
     try:
       sock, client = self.conns[frame.sid]
     except KeyError:
-      print('**BUG?**  sync_reply(sid=%s), no conn found.' % frame.sid)
-      raise
+      if data or not eof:
+        print('**BUG?**  sync_reply(sid=%s), no conn found.' % frame.sid)
+        raise
     if data:
       data = bytes(data, 'latin-1') if (isinstance(data, str)) else data
       sock.setblocking(True)
@@ -68,7 +69,8 @@ class LocalHTTPKite(Kite):
     if eof:
       if frame.sid in self.handlers:
         del self.handlers[frame.sid]
-      del self.conns[frame.sid]
+      if frame.sid in self.conns:
+        del self.conns[frame.sid]
       try:
         client.close()
       except:
@@ -119,7 +121,8 @@ class LocalHTTPKite(Kite):
           else:
             await fuzzy_sleep_ms(50)
       except Exception as e:
-        print_exc(e)
+        if uPK.debug and (sid in self.conns):
+          print_exc(e)
       finally:
         if sid in self.handlers:
           del self.handlers[sid]
@@ -128,7 +131,7 @@ class LocalHTTPKite(Kite):
         if client:
           client.close()
     self.handlers[sid] = True
-    asyncio.create_task(async_wait_job(nbytes))
+    asyncio.get_event_loop().create_task(async_wait_job(nbytes))
 
   def close(self, sid=None):
     for _sid in ([sid] if (sid is not None) else list(self.conns.keys())):

@@ -144,7 +144,7 @@ def handle_big_request(handler, env, max_bytes=None, _async=False):
   if not needed_bytes:
     del parser
     if _async:
-      asyncio.create_task(handler())
+      asyncio.get_event_loop().create_task(handler())
     else:
       handler()
     return None
