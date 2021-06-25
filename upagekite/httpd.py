@@ -202,6 +202,28 @@ class HTTPD:
     asyncio.create_task(async_send_data())
     await fuzzy_sleep_ms(1)
 
+  async def run_handler(self, func, func_attrs, req_env):
+    req_env['url_func_attrs'] = func_attrs
+    if func_attrs.get('_async'):
+      result = await func(req_env)
+    else:
+      result = func(req_env)
+
+    if result is not None:
+      if isinstance(result, dict):
+        await fuzzy_sleep_ms(1)
+        req_env['send_http_response'](**result)
+      elif hasattr(result, '__iter__'):
+        await self.background_send(result,
+          req_env['send_http_response'],
+          req_env['conn'],
+          req_env['frame'],
+          req_env['http_headers']['_method'],
+          req_env['http_headers']['_path'],
+          req_env['http_headers'])
+      else:
+        raise ValueError('Unusable result: %s' % result)
+
   async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
     #        long running requests. This is just one-shot for now.
@@ -285,19 +307,7 @@ class HTTPD:
           exec(code, req_env)
         else:
           await fuzzy_sleep_ms()
-          if func_attrs.get('_async'):
-            result = await func(ReqEnv(req_env))
-          else:
-            result = func(ReqEnv(req_env))
-          if result:
-            if isinstance(result, dict):
-              await fuzzy_sleep_ms(1)
-              first_reply(**result)
-            elif hasattr(result, '__iter__'):
-              await self.background_send(result,
-                first_reply, conn, frame, method, path, headers)
-            else:
-              raise ValueError('Unusable result: %s' % result)
+          await self.run_handler(func, func_attrs, ReqEnv(req_env))
       else:
         await self.background_send(
           _read_fd_iterator(fd, 2048,

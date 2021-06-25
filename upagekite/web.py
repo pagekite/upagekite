@@ -8,22 +8,29 @@
 # Commercial licenses are for sale. See the files README.md and COPYING.txt
 # for more details.
 
+from .proto import asyncio
+
 
 # Decorator for making functions handle POSTed data
-def process_post(max_bytes=None):
+def process_post(max_bytes=None, _async=False):
   def decorate(func):
     def post_wrapper(req_env):
-      uPK = req_env['httpd'].uPK
-      def handler():
+      func_attrs = req_env['url_func_attrs']
+      httpd = req_env['httpd']
+      async def handler():
         try:
-          req_env['send_http_response'](**func(req_env))
+          await httpd.run_handler(func, func_attrs, req_env)
         except Exception as e:
-          if uPK.debug:
-            uPK.debug('post_wrapper failed: %s(%s)' % (type(e), e))
+          if httpd.uPK.debug:
+            httpd.uPK.debug('post_wrapper failed: %s(%s)' % (type(e), e))
           req_env['send_http_response'](code=500, msg='Server Error')
-      handle_big_request(handler, req_env, max_bytes=max_bytes)
-      return None
-    return post_wrapper
+      handle_big_request(handler, req_env, max_bytes=max_bytes, _async=True)
+    if _async:
+      async def async_post_wrapper(req_env):
+        return post_wrapper(req_env)
+      return async_post_wrapper
+    else:
+      return post_wrapper
   return decorate
 
 
@@ -96,7 +103,7 @@ class ParseJSON(ParseNull):
         self.uPK.debug('%s parse failed: %s(%s)' % (self, type(e), e))
 
 
-def handle_big_request(handler, env, max_bytes=None):
+def handle_big_request(handler, env, max_bytes=None, _async=False):
   uPK = env['httpd'].uPK
   frame = env['frame']
   if frame.payload:
@@ -117,7 +124,8 @@ def handle_big_request(handler, env, max_bytes=None):
   max_bytes = min(max_bytes or uPK.MAX_POST_BYTES, uPK.MAX_POST_BYTES)
   needed_bytes = int(headers.get('Content-Length', 0)) - len(frame.payload)
   if needed_bytes > max_bytes:
-    return env['send_http_response'](code=400, msg='Too big')
+    env['send_http_response'](code=400, msg='Too big')
+    return None
 
   (ctype, cattrs) = parse_hdr(headers.get('Content-Type', 'text/plain'))
   if ctype == 'application/json':
@@ -125,7 +133,7 @@ def handle_big_request(handler, env, max_bytes=None):
   elif ctype == 'application/x-www-form-urlencoded':
     parser_cls = ParseWFUE
   elif ctype == 'multipart/form-data':
-    from .web_mpfd import ParseMPFD
+    from web_mpfd import ParseMPFD
     parser_cls = ParseMPFD
   else:
     parser_cls = ParseNull
@@ -135,11 +143,15 @@ def handle_big_request(handler, env, max_bytes=None):
   uPK.GC_COLLECT()
   if not needed_bytes:
     del parser
-    return handler()
+    if _async:
+      asyncio.create_task(handler())
+    else:
+      handler()
+    return None
 
   conn = env['conn']
   needed_bytes = [needed_bytes]  # Scope hack, nonlocal does not work
-  def update_frame(frameN):
+  async def update_frame(frameN):
     nbytes = len(frameN.payload or '')
     frame.payload += frameN.payload
     needed_bytes[0] -= len(frameN.payload)
@@ -152,5 +164,10 @@ def handle_big_request(handler, env, max_bytes=None):
         del conn.handlers[frame.sid]
       if uPK.trace and frame.payload:
         uPK.trace('<<%s' % frame.payload)
-      handler()
-  conn.await_data(uPK, frame.sid, update_frame, needed_bytes[0])
+      if _async:
+        await handler()
+      else:
+        handler()
+
+  conn.async_await_data(uPK, frame.sid, update_frame, needed_bytes[0])
+  return None
