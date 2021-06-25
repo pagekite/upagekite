@@ -59,6 +59,27 @@ def async_url(*paths):
   return decorate
 
 
+# Helper to detect the end of an iteration
+def _eof_and_iteritems(iterable):
+  returning = next(iterable)
+  for next_val in iterable:
+    yield False, returning
+    returning = next_val
+  yield True, returning
+
+
+# Helper to read file descriptor right up until the end
+def _read_fd_iterator(fd, readsize, first_item=None):
+  if first_item is not None:
+    yield first_item
+  while True:
+    data = fd.read(readsize)
+    if data:
+      yield data
+    else:
+      break
+
+
 # Helper class for navigating the request environment
 class ReqEnv(dict):
   # Details about the client
@@ -143,33 +164,32 @@ class HTTPD:
   def _mimetype(self, fn):
     return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
 
-  async def send_file_contents(self, conn, frame, method, path, hdrs, fn, fd):
+  async def background_send(self,
+        iterator, first_reply, conn, frame, method, path, hdrs, _close=[]):
     # Abort the upload if the remote end closes the connection
     saw_eof = [False]
-    def beware_eof(frame):
-      saw_eof[0] = saw_eof[0] or ('W' in frame.eof)
+    def beware_eof(frm):
+      saw_eof[0] = saw_eof[0] or ('W' in frm.eof)
     conn.await_data(self.uPK, frame.sid, beware_eof)
 
-    # Send initial response
-    mimetype = self._mimetype(fn)
-    resp = self.http_response(200, 'OK', mimetype, self.static_max_age)
-    await conn.reply(frame, resp, eof=False)
-
-    # Send the rest using an async "background" task
-    async def async_send_data(sent):
+    # Iteratively send our data
+    async def async_send_data():
       try:
-        while method != 'HEAD':
-          await fuzzy_sleep_ms(5)
-          data = fd.read(4096)
-          if data and not saw_eof[0]:
-            sent += len(data)
-            try:
-              await conn.reply(frame, data, eof=False)
-            except:
-              await conn.reply(frame, eof=True)
-              break
+        sent, first, want_eof = 0, True, True
+        for last_item, item in _eof_and_iteritems(iterator):
+          await fuzzy_sleep_ms(1)
+          last_item = last_item or saw_eof[0]
+          if first:
+            want_eof = item.get('eof', want_eof)
+            item['eof'] = (want_eof and last_item) or (method == 'HEAD')
+            sent += first_reply(**item)
+            first = False
+            if item['eof']:
+              return
           else:
-            await conn.reply(frame, eof=True)
+            await conn.reply(frame, item, eof=(want_eof and last_item))
+            sent += len(item)
+          if last_item:
             break
         self.log_request(frame, method, path, 200, sent, hdrs)
       except Exception as e:
@@ -177,11 +197,13 @@ class HTTPD:
           print_exc(e)
           self.uPK.debug('Exception in async_send_data: %s(%s)' % (type(e), e))
       finally:
-        if fd is not None:
+        for fd in _close:
           fd.close()
         if frame.sid in conn.handlers:
           del conn.handlers[frame.sid]
-    asyncio.create_task(async_send_data(len(resp)))
+
+    asyncio.create_task(async_send_data())
+    await fuzzy_sleep_ms(1)
 
   async def handle_http_request(self, kite, conn, frame):
     # FIXME: Should set up a state machine to handle multi-frame or
@@ -235,25 +257,29 @@ class HTTPD:
     postponed = []
     await fuzzy_sleep_ms()
     try:
+      def first_reply(
+            body='', mimetype='text/html; charset=utf-8',
+            code=200, msg='OK', ttl=None, eof=True, hdrs={}):
+        rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
+        if body and method != 'HEAD':
+          rdata += body
+        conn.sync_reply(frame, rdata, eof=eof)
+        sent = len(rdata) if eof else '-'
+        self.log_request(frame, method, path, code, sent, headers)
+        return len(rdata)
+
+      def postpone_action(func, *args, **kwargs):
+        postponed.append((func, args, kwargs))
+
       if func or func_async or filename.endswith('.py'):
-        replies = []
-        def r(body='', mimetype='text/html; charset=utf-8',
-              code=200, msg='OK', ttl=None, eof=True, hdrs={}):
-          rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
-          if method != 'HEAD':
-            rdata += body
-          conn.sync_reply(frame, rdata, eof=eof)
-          self.log_request(frame, method, path, code, len(rdata), headers)
-        def p(func, *args, **kwargs):
-          postponed.append((func, args, kwargs))
         headers['_method'] = method
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
         req_env = {
           'time': time, 'os': os, 'sys': sys, 'json': json, 'open': upk_open,
           'httpd': self, 'kite': kite, 'conn': conn, 'frame': frame,
-          'send_http_response': r,
-          'postpone_action': p,
+          'send_http_response': first_reply,
+          'postpone_action': postpone_action,
           'http_headers': headers}
         req_env.update(self.base_env)
         if fd:
@@ -268,11 +294,21 @@ class HTTPD:
           else:
             result = await func_async(ReqEnv(req_env))
           if result:
-            await fuzzy_sleep_ms(1)
-            r(**result)
+            if isinstance(result, dict):
+              await fuzzy_sleep_ms(1)
+              first_reply(**result)
+            elif hasattr(result, '__iter__'):
+              await self.background_send(result,
+                first_reply, conn, frame, method, path, headers)
+            else:
+              raise ValueError('Unusable result: %s' % result)
       else:
-        await self.send_file_contents(
-          conn, frame, method, path, headers, filename, fd)
+        await self.background_send(
+          _read_fd_iterator(fd, 2048,
+            first_item={
+              'mimetype': self._mimetype(filename),
+              'ttl': self.static_max_age}),
+          first_reply, conn, frame, method, path, headers, _close=[fd])
         fd = None
     except Exception as e:
       if self.uPK.debug:
