@@ -392,14 +392,18 @@ class uPageKiteDefaults:
     if cls.trace:
       cls.trace(']> %s' % data)
     conn.write(data)
+    if hasattr(conn, 'flush'):
+      conn.flush()
 
   @classmethod
   async def send(cls, conn, data):
     data = data if (isinstance(data, bytes)) else bytes(data, 'latin-1')
-    if cls.trace:
-      cls.trace('>> %s' % data)
     await fuzzy_sleep_ms()
     conn.write(data)
+    if hasattr(conn, 'flush'):
+      conn.flush()
+    if cls.trace:
+      cls.trace('>>[%d] %s' % (len(data), data[:24]))
     await fuzzy_sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
   @classmethod

@@ -325,9 +325,9 @@ class uPageKiteConn:
 
       # Zero-length chunks aren't an error condition
       return True
-    except EofTunnelError:
+    except EofTunnelError as e:
       if self.pk.uPK.debug:
-        self.pk.uPK.debug('EOF tunnel')
+        self.pk.uPK.debug('EOF tunnel %s(%s)' % (type(e), e))
       return False
 
 
@@ -361,10 +361,11 @@ class uPageKiteConnPool:
       self.pk.uPK.trace('Entering poll(%d)' % timeout_ms)
 
     for (obj, event) in await self.async_poll(timeout_ms):
+      conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
+      if self.pk.uPK.trace:
+        self.pk.uPK.trace(
+          'process_io(%s) o=%s ev=0x%x' % (conn, obj, event))
       if (event & SELECT_POLL_IN):
-        conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
-        if self.pk.uPK.trace:
-          self.pk.uPK.trace('process_io(%s)' % conn)
         if await conn.process_io(uPK):
           count += 1
         else:

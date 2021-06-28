@@ -240,8 +240,6 @@ class HTTPD:
           req_env['http_headers'])
 
   async def handle_http_request(self, kite, conn, frame):
-    # FIXME: Should set up a state machine to handle multi-frame or
-    #        long running requests. This is just one-shot for now.
     method = path = '-'
     self.uPK.GC_COLLECT()
     try:
