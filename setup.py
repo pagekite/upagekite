@@ -1,10 +1,10 @@
-from distutils import setup
+from distutils.core import setup
 setup(
   name = 'upagekite',
   packages = ['upagekite'],
   version = '0.1.0',
   license='GPL-3.0',
-  description = "Embeddable/IoT PageKite asyncio web server and framework"
+  description = "Embeddable/IoT PageKite asyncio web server and framework",
   long_description = """\
 NOTE: This ALPHA code - a work in progress! Testing uploads to PyPI.
 
