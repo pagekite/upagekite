@@ -207,9 +207,27 @@ class LocalHTTPKite(Kite):
     return True
 
 
+class myLock:
+  def __init__(self):
+    self.locked = False
+
+  async def __aenter__(self, *args):
+    while self.locked:
+      await fuzzy_sleep_ms(2)
+    self.locked = True
+
+  async def __aexit__(self, *args):
+    self.locked = False
+    await fuzzy_sleep_ms(2)
+
+
 class uPageKiteConn:
   def __init__(self, pk):
     self.pk = pk
+    try:
+      self.lock = asyncio.Lock()
+    except:
+      self.lock = myLock()
 
   async def connect(self, relay_addr):
     pk = self.pk
@@ -233,13 +251,15 @@ class uPageKiteConn:
 
   async def reply(self, frame, data=None, eof=True):
     uPK = self.pk.uPK
-    if data:
-      await uPK.send(self.conn, uPK.fmt_data(frame, data))
-    if eof:
-      await uPK.send(self.conn, uPK.fmt_eof(frame))
+    async with self.lock:
+      if data:
+        await uPK.send(self.conn, uPK.fmt_data(frame, data))
+      if eof:
+        await uPK.send(self.conn, uPK.fmt_eof(frame))
 
   async def send_ping(self):
-    await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_ping())
+    async with self.lock:
+      await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_ping())
 
   def await_data(self, uPK, sid, handler, nbytes=-1):
     async def async_handler(*args):
@@ -265,15 +285,17 @@ class uPageKiteConn:
 
   async def process_io(self, uPK):
     try:
-      frame = await self.pk.uPK.read_chunk(self.conn)
+      async with self.lock:
+        frame = await self.pk.uPK.read_chunk(self.conn)
       now = int(time.time())
       self.last_data_ts = now
       if frame:
         frame = Frame(uPK, frame, cid=('%d-' % self.fd.fileno()))
 
         if frame.ping:
-          # Should never happen, as we send our own pings much more frequently
-          await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_pong(frame.ping))
+          async with self.lock:
+            # Should never happen, as we send our own pings much more frequently
+            await self.pk.uPK.send(self.conn, self.pk.uPK.fmt_pong(frame.ping))
 
         elif frame.sid and frame.sid in self.handlers:
           try:
