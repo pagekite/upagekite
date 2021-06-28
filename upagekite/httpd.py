@@ -214,7 +214,10 @@ class HTTPD:
         if frame.sid in conn.handlers:
           del conn.handlers[frame.sid]
         if want_eof:
-          await conn.reply(frame, None, eof=True)
+          try:
+            await conn.reply(frame, None, eof=True)
+          except:
+            pass
 
     asyncio.get_event_loop().create_task(async_send_data())
     await fuzzy_sleep_ms(1)
@@ -326,7 +329,7 @@ class HTTPD:
       else:
         filesize = size(filename)
         await self.background_send(
-          _read_fd_iterator(fd, 2048,
+          _read_fd_iterator(fd, self.uPK.FILE_READ_BYTES,
             first_item={
               'hdrs': {'Content-Length': filesize},
               'suppress_log': (filesize < 102400),

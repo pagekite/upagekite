@@ -215,7 +215,8 @@ class uPageKiteDefaults:
   WATCHDOG_TIMEOUT = 60000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
-  MS_DELAY_PER_BYTE = (0.25 if IS_MICROPYTHON else 0.01)
+  MS_DELAY_PER_BYTE = (0.01 if IS_MICROPYTHON else 0.005)
+  FILE_READ_BYTES = (1500 if IS_MICROPYTHON else 4*1500) - 64
   RANDOM_PING_VALUES = False
 
   WEBSOCKET_MASK = lambda: b'\0\0\0\0'
@@ -450,24 +451,28 @@ class uPageKiteDefaults:
   async def read_chunk(cls, conn):
     hdr = b''
     try:
-      await fuzzy_sleep_ms(20)
-      while not hdr.endswith(b'\r\n'):
+      while not hdr.endswith(b'\r\n') and len(hdr) < 10:
         byte = conn.read(1)
         if byte in (b'', None):
           raise EofTunnelError()
         hdr += byte
 
-      await fuzzy_sleep_ms(5)
       chunk_len = int(str(hdr, 'latin-1').strip(), 16)
-      payload = conn.read(chunk_len)
-      await fuzzy_sleep_ms(5)
+      payload = b''
+      while len(payload) < chunk_len:
+        payload += conn.read(chunk_len - len(payload))
 
-      # FIXME: We might need a loop here, in case of short reads.
-      #        And for self preservation, a possibly discard mode if the
-      #        frame is too big for us to handle.
+      if len(payload) != chunk_len:
+        raise EofTunnelError(
+          'Read size mismatch: %s != %s' % (len(payload), chunk_len))
       if cls.trace:
-        cls.trace('<< %s%s' % (hdr, payload))
+        cls.trace('<<[%d] %s %s' % (len(payload)+len(hdr), hdr, payload[:40]))
+
       return payload
+    except (UnicodeError, ValueError):
+      if cls.debug:
+        cls.debug('Invalid chunk header: %s' % hdr)
+      raise EofTunnelError()
     except OSError:
       raise EofTunnelError()
 
