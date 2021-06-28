@@ -79,8 +79,7 @@ class LocalHTTPKite(Kite):
   async def reply(self, frame, data=None, eof=True):
     await fuzzy_sleep_ms()
     self.sync_reply(frame, data=data, eof=eof)
-    if data:
-      await fuzzy_sleep_ms(int(len(data) * frame.uPK.MS_DELAY_PER_BYTE))
+    await frame.uPK.network_send_sleep(len(data))
 
   def await_data(self, uPK, sid, handler, nbytes=-1):
     async def async_handler(*args):
@@ -113,7 +112,7 @@ class LocalHTTPKite(Kite):
             if more:
               if nbytes > 0:
                 nbytes -= len(more)
-              await fuzzy_sleep_ms(max(10, int(len(more) * uPK.MS_DELAY_PER_BYTE)))
+              await uPK.network_send_sleep(len(more))
             else:
               break
           elif error:

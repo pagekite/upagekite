@@ -30,6 +30,10 @@ from struct import unpack
 # This is a cache of DNS hints we have recived from the network.
 _DNS_HINTS = {}
 
+# A global counter for bytes we've sent over the network
+SENT_COUNTER = 0
+SENT_DELAYS = 0
+
 
 try:
     import uasyncio as asyncio
@@ -215,8 +219,9 @@ class uPageKiteDefaults:
   WATCHDOG_TIMEOUT = 60000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
-  MS_DELAY_PER_BYTE = (0.01 if IS_MICROPYTHON else 0.005)
+  MS_DELAY_PER_BYTE = (0.025 if IS_MICROPYTHON else 0.005)
   FILE_READ_BYTES = (1500 if IS_MICROPYTHON else 4*1500) - 64
+  SEND_WINDOW_BYTES = (2048 if IS_MICROPYTHON else 16384)
   RANDOM_PING_VALUES = False
 
   WEBSOCKET_MASK = lambda: b'\0\0\0\0'
@@ -254,6 +259,19 @@ class uPageKiteDefaults:
     if cls.trace:
       cls.trace('Random secret: %s' % rs)
     return rs
+
+  @classmethod
+  async def network_send_sleep(uPK, sent):
+    global SENT_COUNTER
+    global SENT_DELAYS
+
+    SENT_COUNTER += sent
+    if SENT_COUNTER > 100*1024*1024:
+      SENT_COUNTER = SENT_DELAYS = 0
+
+    sleep_time = 5 + int((SENT_COUNTER * uPK.MS_DELAY_PER_BYTE) - SENT_DELAYS)
+    SENT_DELAYS += sleep_time
+    await fuzzy_sleep_ms(sleep_time)
 
   @classmethod
   async def check_fe_hint_url(cls):
@@ -389,7 +407,7 @@ class uPageKiteDefaults:
 
   @classmethod
   def sync_send(cls, conn, data):
-    data = data if (isinstance(data, bytes)) else bytes(data, 'latin-1')
+    data = bytes(data, 'latin-1') if isinstance(data, str) else data
     if cls.trace:
       cls.trace(']> %s' % data)
     conn.write(data)
@@ -398,25 +416,24 @@ class uPageKiteDefaults:
 
   @classmethod
   async def send(cls, conn, data):
-    data = data if (isinstance(data, bytes)) else bytes(data, 'latin-1')
-    await fuzzy_sleep_ms()
+    data = bytes(data, 'latin-1') if isinstance(data, str) else data
     conn.write(data)
+    await cls.network_send_sleep(len(data))
     if hasattr(conn, 'flush'):
       conn.flush()
     if cls.trace:
       cls.trace('>>[%d] %s' % (len(data), data[:24]))
-    await fuzzy_sleep_ms(int(len(data) * cls.MS_DELAY_PER_BYTE))
 
   @classmethod
   def fmt_chunk(cls, data):
-    data = data if isinstance(data, bytes) else bytes(data, 'latin-1')
+    data = bytes(data, 'latin-1') if isinstance(data, str) else data
     return b'%x\r\n%s' % (len(data), data)
 
   @classmethod
   def fmt_data(cls, frame, data):
     return cls.fmt_chunk(b'SID: %s\r\n\r\n%s'% (
       bytes(frame.sid, 'latin-1'),
-      data if isinstance(data, bytes) else bytes(data, 'latin-1')))
+      bytes(data, 'latin-1') if isinstance(data, str) else data))
 
   @classmethod
   def fmt_eof(cls, frame):
@@ -426,7 +443,7 @@ class uPageKiteDefaults:
   @classmethod
   def fmt_pong(cls, pong):
     return cls.fmt_chunk(b'NOOP: 1\r\nPONG: %s\r\n\r\n!' % (
-      pong if isinstance(pong, bytes) else bytes(pong, 'latin-1'),))
+      bytes(pong, 'latin-1') if isinstance(pong, str) else pong,))
 
   @classmethod
   def fmt_ping(cls, conn):

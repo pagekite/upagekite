@@ -67,6 +67,15 @@ def filename_to_mimetype(fn):
   return _MIMETYPES.get(fn.rsplit('.', 1)[-1].lower(), _MIMETYPES['_default'])
 
 
+# Helper for iterating over chunks of a buffer
+def _buffer_byte_chunks(buf, chunksize):
+  start, end = 0, min(len(buf), chunksize)
+  while start < len(buf):
+    data = buf[start:end]
+    yield str(data, 'latin-1') if isinstance(data, str) else bytes(data)
+    start, end = end, min(len(buf), end + chunksize)
+
+
 # Helper to read file descriptor right up until the end
 def _read_fd_iterator(fd, readsize, first_item=None):
   if first_item is not None:
@@ -171,10 +180,12 @@ class HTTPD:
 
     # Iteratively send our data
     async def async_send_data():
+      sent = 0
       code = 200
       want_eof = True
+      sent_first = False
       try:
-        await fuzzy_sleep_ms(1)
+        await fuzzy_sleep_ms(10)
 
         first_item = next(iterator)
         if method == 'HEAD':
@@ -182,27 +193,40 @@ class HTTPD:
           first_item['suppress_log'] = False
           first_reply(**first_item)
           want_eof = False
+          sent_first = True
           return
-        else:
-          sent = 0
-          want_eof = first_item.get('eof', want_eof)
-          first_item['eof'] = False
-          sent += first_reply(**first_item)
 
+        want_eof = first_item.get('eof', want_eof)
+        first_item['eof'] = False
+        sent = first_reply(**first_item)
+        sent_first = True
+
+        # Note: The order and type of sleeps here is important; if we do
+        #       not give control back to the main event loop which reads
+        # the PageKite tunnel, the "ack" packets may build up and cause
+        # our ESP32 devices to run out of RAM and break the connection.
         conn.await_data(self.uPK, frame.sid, beware_eof)
-        for data in iterator:
+        for app_data in iterator:
+          for data in _buffer_byte_chunks(app_data, self.uPK.SEND_WINDOW_BYTES):
+            await fuzzy_sleep_ms(5)
+            if saw_eof[0]:
+              break
+
+            await conn.reply(frame, data, eof=False)
+            sent += len(data)
+            # Avoid buffer bloat
+            while (progress[0]
+                  and not saw_eof[0]
+                  and (progress[0] * 1024) < (sent - self.uPK.SEND_WINDOW_BYTES)):
+              await fuzzy_sleep_ms(50)
           if saw_eof[0]:
             break
-          await conn.reply(frame, data, eof=False)
-          sent += len(data)
-          # Avoid buffer bloat
-          while (progress[0]
-                and not saw_eof[0]
-                and (progress[0] * 1024) < (sent - 16*1024)):
-            await fuzzy_sleep_ms(50)
 
       except Exception as e:
         code = '-'
+        want_eof = sent_first
+        if not sent_first:
+          sent = first_reply(code=500, msg='Server Error', eof=True)
         if self.uPK.debug:
           print_exc(e)
           self.uPK.debug('Exception in async_send_data: %s(%s)' % (type(e), e))

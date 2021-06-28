@@ -28,12 +28,26 @@ else:
   CAPTIVE_IP = '192.168.4.1'
 
 
-@upagekite.httpd.async_url('/builtin', '/builtin/')
+@upagekite.httpd.url('/builtin', '/builtin/', _async=True)
 async def slash_builtin(env):
   return {
     'body': 'This is a built-in Python web endpoint\n',
     'mimetype': 'text/plain; charset=us-ascii',
     'ttl': 60}
+
+
+@upagekite.httpd.url('/builtin/big', '/builtin/big/')
+def slash_builtin_big(env):
+  chunks = 10240
+  chunksize = 128  # Units of ten
+  yield {
+    'hdrs': {'Content-Length': 10*chunks*chunksize},
+    'mimetype': 'text/plain; charset=us-ascii',
+    'ttl': 60}
+  bufr = bytearray('%8.8x %s\n' % (0, '0123456789' * (chunksize-1)))
+  for i in range(0, chunks):
+    bufr[:8] = b'%8.8x' % i
+    yield bufr
 
 
 @upagekite.httpd.async_url('/websocket', '/websocket/')
