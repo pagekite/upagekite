@@ -195,7 +195,7 @@ class Frame:
 class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
-  APPVER = '0.1.0u'
+  APPVER = '0.1.1u'
   PARSE_HTTP_HEADERS = re.compile('^(Co(n(nection|tent-\S+)|okie)|Host|Origin|Sec-WebSocket-\S+|U(pgrade|ser-Agent)):')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
