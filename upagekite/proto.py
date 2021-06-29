@@ -158,6 +158,7 @@ async def fuzzy_sleep_ms(ms=0):
   real_sleep_ms(1)
   if ms > 1:
     await sleep_ms(ms-1)
+  return max(ms, 1)
 
 
 class Kite:

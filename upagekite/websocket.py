@@ -79,7 +79,7 @@ def websocket(ws_id=None, strict_origin=True):
 async def ws_broadcast(ws_ids, message, only=None):
   for _id in (ws_ids if isinstance(ws_ids, list) else [ws_ids]):
     try:
-      await Websocket.get(_id).broadcast(message, only)
+      await Websocket.get(_id).broadcast(message, only=only)
     except KeyError:
       pass
 
