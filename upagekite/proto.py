@@ -219,10 +219,16 @@ class uPageKiteDefaults:
   WATCHDOG_TIMEOUT = 60000
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
-  MS_DELAY_PER_BYTE = (0.025 if IS_MICROPYTHON else 0.005)
-  FILE_READ_BYTES = (1500 if IS_MICROPYTHON else 4*1500) - 64
-  SEND_WINDOW_BYTES = (2048 if IS_MICROPYTHON else 16384)
   RANDOM_PING_VALUES = False
+
+  # These values are critical magic under MicroPython - if the balance
+  # is wrong, we get garbage reads from our tunnel socket or run out of
+  # memory on the ESP32. In particular, the send window may not be much
+  # larger than FILE_READ_BYTES; so those must be raised together and
+  # that will in turn effect RAM usage. This limits performance.
+  SEND_WINDOW_BYTES = (1500 if IS_MICROPYTHON else 16384)
+  FILE_READ_BYTES = (1500 if IS_MICROPYTHON else 4*1500) - 64
+  MS_DELAY_PER_BYTE = (0.025 if IS_MICROPYTHON else 0.005)
 
   WEBSOCKET_MASK = lambda: b'\0\0\0\0'
   WEBSOCKET_MAX_CONNS = (5 if IS_MICROPYTHON else 100)
