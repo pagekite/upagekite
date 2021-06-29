@@ -1,12 +1,13 @@
 # This file from the uPageKite distribution is placed in the Public Domain.
 # Remix at will!
 #
+import gc
 import sys
 import time
 import upagekite
 import upagekite.httpd
 import upagekite.websocket
-from upagekite.proto import upk_open
+from upagekite.proto import upk_open, ticks_ms, asyncio, fuzzy_sleep_ms
 try:
   from boot import settings
 except:
@@ -65,14 +66,31 @@ async def ws_test(opcode, msg, conn, ws, first=False, eof=False, websocket=True)
     await ws.broadcast('%s left.' % conn.uid)
 
 
+# This demonstrates how to broadcast our log data to a websocket
+LOG = []
+async def ws_logger():
+  global LOG
+  while await fuzzy_sleep_ms(991):
+    if LOG:
+      lines, LOG = LOG, []
+      await upagekite.websocket.ws_broadcast('test', '\n'.join(lines))
+      del lines
+      gc.collect()
+
+def ws_log(msg):
+  global LOG
+  LOG.append('[%d] %s' % (ticks_ms(), msg))
+  return upagekite.uPageKiteDefaults.log(msg)
+
+
 class MyProto(upagekite.uPageKiteDefaults):
   # Disable watchdog
   WATCHDOG_TIMEOUT = None
 
-  #trace = upagekite.uPageKiteDefaults.log
-  debug = upagekite.uPageKiteDefaults.log
-  info  = upagekite.uPageKiteDefaults.log
-  error = upagekite.uPageKiteDefaults.log
+  #trace = upagekite.uPageKiteDefaults.log  # Do not use ws_log!
+  debug = ws_log
+  error = ws_log
+  info  = ws_log
 
 
 def captive_portal(env, httpd):
@@ -139,10 +157,9 @@ def get_upk():
 
 
 if __name__ == "__main__":
-  import gc
-  from upagekite.proto import asyncio
   upk = get_upk()
   del get_upk
   del captive_portal
+  asyncio.get_event_loop().create_task(ws_logger())
   gc.collect()
   upk.run()
