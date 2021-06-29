@@ -312,7 +312,7 @@ class uPageKiteConnPool:
 
     self.conns = dict((c.fd.fileno(), c) for c in conns)
     for so in pk.socks:
-      if so.fd:
+      if so.fd is not None:
         self.conns[so.fd.fileno()] = so
 
     self.poll = select.poll()
@@ -373,7 +373,7 @@ class uPageKite:
     self.keep_running = True
     self.public = public
     self.kites = kites
-    self.socks = socks
+    self.socks = [s for s in socks if s.fd is not None]
     self.secret = uPK.make_random_secret([(k.name, k.secret) for k in kites])
     self.want_dns_update = [0]
     self.reconfig_flag = False
