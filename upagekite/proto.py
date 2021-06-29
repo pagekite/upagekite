@@ -296,38 +296,45 @@ class uPageKiteDefaults:
       await fuzzy_sleep_ms()
       addr = socket.getaddrinfo(hostname, int(port))[0][-1]
 
-    await fuzzy_sleep_ms()
-    t0 = ticks_ms()
-    cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
-    await cls.send(conn,
-      'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host))
-
-    t1 = ticks_ms()
-    response = b''
-    while len(response) < maxread:
-      try:
-        await fuzzy_sleep_ms()
-        data = conn.read(atonce)
-        response += data
-      except:
-        data = None
-      if not data:
-        break
-    conn.close()
-    t2 = ticks_ms()
-
+    conn = None
     try:
-      header, body = response.split(b'\r\n\r\n', 1)
-    except ValueError:
-      header = response
-      body = ''
-    header_lines = (str(header, 'latin-1') or '\n').splitlines()
-    if dns_hints:
-      cls.scan_for_dns_hints(header_lines)
-    return (
-      header_lines[0],
-      dict(l.split(': ', 1) for l in header_lines[1:]),
-      t1-t0, t2-t1, body)
+      await fuzzy_sleep_ms()
+      t0 = ticks_ms()
+      cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
+      await cls.send(conn,
+        'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host))
+
+      t1 = ticks_ms()
+      response = b''
+      while len(response) < maxread:
+        try:
+          await fuzzy_sleep_ms()
+          data = conn.read(atonce)
+          response += data
+        except:
+          data = None
+        if not data:
+          break
+      conn.close()
+      t2 = ticks_ms()
+
+      try:
+        header, body = response.split(b'\r\n\r\n', 1)
+      except ValueError:
+        header = response
+        body = ''
+      header_lines = (str(header, 'latin-1') or '\n').splitlines()
+      if dns_hints:
+        cls.scan_for_dns_hints(header_lines)
+      return (
+        header_lines[0],
+        dict(l.split(': ', 1) for l in header_lines[1:]),
+        t1-t0, t2-t1, body)
+    finally:
+      try:
+        conn.close()
+      except:
+        pass
 
   @classmethod
   async def get_kite_addrinfo(cls, kite):
