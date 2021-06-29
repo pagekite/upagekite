@@ -610,7 +610,7 @@ class uPageKite:
             relays = []
       else:
         if self.uPK.debug:
-          self.uPK.debug("No sockets available, sleeping until %x" % next_check)
+          self.uPK.debug("No sockets available, sleeping until %d" % next_check)
         await fuzzy_sleep_ms(999 * max(0, next_check - int(time.time())))
 
   def run(self):
