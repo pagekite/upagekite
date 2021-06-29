@@ -414,7 +414,11 @@ class uPageKite:
       pings[i] = await self.uPK.ping_relay(relay_addr, bias)
 
     relays = list(zip(pings, relays))
-    fastest = min(relays)
+    fastest = relays[0]
+    for r in relays:
+      if r[0] < fastest[0]:
+        fastest = r
+
     if fastest != relays[0]:
       return [fastest[-1], relays[0][-1]]
     else:
