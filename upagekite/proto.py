@@ -414,7 +414,7 @@ class uPageKiteDefaults:
 
   @classmethod
   def sync_send(cls, conn, data):
-    data = bytes(data, 'latin-1') if isinstance(data, str) else data
+    data = bytes(data, 'utf-8') if isinstance(data, str) else data
     if cls.trace:
       cls.trace(']> %s' % data)
     conn.write(data)
@@ -423,7 +423,7 @@ class uPageKiteDefaults:
 
   @classmethod
   async def send(cls, conn, data):
-    data = bytes(data, 'latin-1') if isinstance(data, str) else data
+    data = bytes(data, 'utf-8') if isinstance(data, str) else data
     conn.write(data)
     await cls.network_send_sleep(len(data))
     if hasattr(conn, 'flush'):
@@ -433,14 +433,14 @@ class uPageKiteDefaults:
 
   @classmethod
   def fmt_chunk(cls, data):
-    data = bytes(data, 'latin-1') if isinstance(data, str) else data
+    data = bytes(data, 'utf-8') if isinstance(data, str) else data
     return b'%x\r\n%s' % (len(data), data)
 
   @classmethod
   def fmt_data(cls, frame, data):
     return cls.fmt_chunk(b'SID: %s\r\n\r\n%s'% (
       bytes(frame.sid, 'latin-1'),
-      bytes(data, 'latin-1') if isinstance(data, str) else data))
+      bytes(data, 'utf-8') if isinstance(data, str) else data))
 
   @classmethod
   def fmt_eof(cls, frame):

@@ -72,7 +72,7 @@ def _buffer_byte_chunks(buf, chunksize):
   start, end = 0, min(len(buf), chunksize)
   while start < len(buf):
     data = buf[start:end]
-    yield str(data, 'latin-1') if isinstance(data, str) else bytes(data)
+    yield bytes(data, 'utf-8') if isinstance(data, str) else bytes(data)
     start, end = end, min(len(buf), end + chunksize)
 
 
@@ -121,19 +121,22 @@ class HTTPD:
 
   @classmethod
   def unquote(cls, quoted):
-    if isinstance(quoted, str):
-      quoted = bytes(quoted, 'latin-1')
+    quoted = bytes(quoted, 'latin-1') if isinstance(quoted, str) else quoted
     _in = quoted.split(b'%')
     _out = [_in[0]]
     for frag in _in[1:]:
       try:
-        _out.extend([bytes([int(frag[:2], 16)], 'latin-1'), frag[2:]])
+        _out.extend([bytes([int(frag[:2], 16)]), frag[2:]])
       except ValueError:
-        _out.extend([b'%', frag])
+        _out.append(b'%', frag)
+    joined = b''.join(_out)
     try:
-      return str(b''.join(_out), 'utf-8')
+      return str(joined, 'utf-8')
     except UnicodeError:
-      return quoted
+      try:
+        return str(joined, 'latin-1')
+      except UnicodeError:
+        return quoted
 
   @classmethod
   def qs_to_list(cls, qs):
@@ -263,7 +266,7 @@ class HTTPD:
           req_env['conn'],
           req_env['frame'],
           req_env['http_headers']['_method'],
-          req_env['http_headers']['_path'],
+          req_env['http_headers']['_pathqs'],
           req_env['http_headers'])
 
   async def handle_http_request(self, kite, conn, frame):
@@ -272,7 +275,8 @@ class HTTPD:
     try:
       headers = frame.payload.split(b'\r\n\r\n', 1)[0]
       request, headers = str(headers, 'latin-1').split('\r\n', 1)
-      method, path, http = request.split(' ', 2)
+      method, pathqs, http = request.split(' ', 2)
+      path = pathqs
       if ('..' in path) or method not in self.METHODS:
         raise ValueError()
       del request
@@ -285,7 +289,7 @@ class HTTPD:
         l[:128].split(': ', 1) for l in headers.splitlines()
         if self.uPK.PARSE_HTTP_HEADERS.match(l))
     except Exception as e:
-      return await self._err(400, 'Invalid request', method, path, conn, frame)
+      return await self._err(400, 'Invalid request', method, pathqs, conn, frame)
 
     func, func_attrs = _HANDLERS.get(path, (None, None))
     filename = self.webroot + path
@@ -308,7 +312,8 @@ class HTTPD:
           filename = self.webroot + '/404.py'
           fd = open(filename, 'rb')
         except:
-          return await self._err(404, 'Not Found', method, path, conn, frame, headers)
+          return await self._err(
+            404, 'Not Found', method, pathqs, conn, frame, headers)
     else:
       fd = None
 
@@ -325,7 +330,7 @@ class HTTPD:
         conn.sync_reply(frame, rdata, eof=eof)
         if not suppress_log:
           sent = len(rdata) if eof else '-'
-          self.log_request(frame, method, path, code, sent, headers)
+          self.log_request(frame, method, pathqs, code, sent, headers)
         return len(rdata)
 
       def postpone_action(func, *args, **kwargs):
@@ -333,6 +338,7 @@ class HTTPD:
 
       if func or filename.endswith('.py'):
         headers['_method'] = method
+        headers['_pathqs'] = pathqs
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
         req_env = {
@@ -359,13 +365,14 @@ class HTTPD:
               'suppress_log': (filesize < 102400),
               'mimetype': filename_to_mimetype(filename),
               'ttl': self.static_max_age}),
-          first_reply, conn, frame, method, path, headers, _close=[fd])
+          first_reply, conn, frame, method, pathqs, headers, _close=[fd])
         fd = None
     except Exception as e:
       if self.uPK.debug:
         print_exc(e)
         self.uPK.debug('Exception in handle_http_request: %s(%s)' % (type(e), e))
-      return await self._err(500, 'Server Error', method, path, conn, frame, headers)
+      return await self._err(
+        500, 'Server Error', method, pathqs, conn, frame, headers)
     finally:
       if fd is not None:
         fd.close()
