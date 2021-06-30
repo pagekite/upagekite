@@ -133,7 +133,7 @@ def handle_big_request(handler, env, max_bytes=None, _async=False):
   elif ctype == 'application/x-www-form-urlencoded':
     parser_cls = ParseWFUE
   elif ctype == 'multipart/form-data':
-    from web_mpfd import ParseMPFD
+    from .web_mpfd import ParseMPFD
     parser_cls = ParseMPFD
   else:
     parser_cls = ParseNull
