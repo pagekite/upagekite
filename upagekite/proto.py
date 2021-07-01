@@ -218,6 +218,7 @@ class uPageKiteDefaults:
   MIN_CHECK_INTERVAL = 16
   MAX_CHECK_INTERVAL = 900
   WATCHDOG_TIMEOUT = 60000
+  SOCKET_TIMEOUTS = (5, 60)  # (connect, data) timeouts, in seconds
   TUNNEL_TIMEOUT = 240
   MAX_POST_BYTES = 64 * 1024
   RANDOM_PING_VALUES = False
@@ -326,7 +327,9 @@ class uPageKiteDefaults:
     try:
       await fuzzy_sleep_ms()
       t0 = ticks_ms()
-      cfd, conn = await sock_connect_stream(cls, addr, ssl_wrap=(proto == 'https'))
+      cfd, conn = await sock_connect_stream(cls, addr,
+        ssl_wrap=(proto == 'https'),
+        timeouts=cls.SOCKET_TIMEOUTS)
       await cls.send(conn,
         'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, http_host))
 
@@ -560,7 +563,9 @@ class uPageKiteDefaults:
       kite.challenge = ''
 
     # Connect, get fresh challenges
-    cfd, conn = await sock_connect_stream(cls, relay_addr, ssl_wrap=cls.WITH_SSL)
+    cfd, conn = await sock_connect_stream(cls, relay_addr,
+      ssl_wrap=cls.WITH_SSL,
+      timeouts=cls.SOCKET_TIMEOUTS)
     await cls.send(conn, (
         'CONNECT PageKite:1 HTTP/1.0\r\n'
         'X-PageKite-Features: AddKites\r\n'
