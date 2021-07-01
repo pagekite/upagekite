@@ -453,7 +453,7 @@ class uPageKiteDefaults:
       bytes(pong, 'latin-1') if isinstance(pong, str) else pong,))
 
   @classmethod
-  def fmt_ping(cls, conn):
+  def fmt_ping(cls):
     return cls.fmt_chunk(b'NOOP: 1\r\nPING: %.2f\r\n\r\n!' % (time.time(),))
 
   @classmethod
