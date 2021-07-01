@@ -2,7 +2,7 @@ from distutils.core import setup
 setup(
   name = 'upagekite',
   packages = ['upagekite'],
-  version = '0.2.0',
+  version = '0.2.1',
   license='GPL-3.0',
   description = "Embeddable/IoT PageKite asyncio web server and framework",
   long_description = """\
@@ -24,7 +24,7 @@ from the author.""",
   author = 'Bjarni R. Einarsson',
   author_email = 'bre@pagekite.net',
   url = 'https://github.com/pagekite/upagekite',
-  download_url = 'https://codeload.github.com/pagekite/upagekite/tar.gz/refs/tags/v0.2.0u',
+  download_url = 'https://codeload.github.com/pagekite/upagekite/tar.gz/refs/tags/v0.2.1u',
   keywords = ['pagekite', 'http', 'websocket', 'esp32', 'micropython'],
   install_requires=[],
   classifiers=[
