@@ -435,6 +435,8 @@ class uPageKite:
 
     pings = [0] * len(relays)
     for i, relay_addr in enumerate(relays):
+      if not self.public or not self.keep_running:
+        return []
       bias = 0.9 if (not i or relay_addr in preferred) else 1.0
       pings[i] = await self.uPK.ping_relay(relay_addr, bias)
 
@@ -453,6 +455,8 @@ class uPageKite:
     conns = []
     self.want_dns_update = [0]
     for relay in relays:
+      if not self.public or not self.keep_running:
+        return conns  # Not [], to make sure cleanup is correct
       await fuzzy_sleep_ms()
       try:
         conns.append(await uPageKiteConn(self).connect(relay))
@@ -481,7 +485,7 @@ class uPageKite:
     await fuzzy_sleep_ms()
     try:
       pool = uPageKiteConnPool(conns, self)
-      while pool.conns and time.time() < deadline:
+      while pool.conns and self.keep_running and time.time() < deadline:
         if wdt:
           wdt.feed()
 
@@ -550,6 +554,8 @@ class uPageKite:
     if 1 == self.want_dns_update[0]:
       self.want_dns_update[0] = recheck_max
       for kite in self.kites:
+        if not self.public or not self.keep_running:
+          return relays, back_off  # Not [], to make sure cleanup is correct
         if self.uPK.trace:
           self.uPK.trace("Checking current DNS state for %s" % kite)
         for a in await self.uPK.get_kite_addrinfo(kite):
@@ -604,7 +610,7 @@ class uPageKite:
         mem_free=(gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown'))
 
       await fuzzy_sleep_ms()
-      if next_check <= now and self.public:
+      if next_check <= now and self.public and self.keep_running:
         self.uPK.GC_COLLECT()
 
         # Check our relay status? Reconnect?
@@ -613,7 +619,7 @@ class uPageKite:
           await fuzzy_sleep_ms()
 
         # Is DNS up to date?
-        if relays:
+        if relays and self.public and self.keep_running:
           relays, back_off = await self.check_dns(now, relays, back_off)
           await fuzzy_sleep_ms()
 
