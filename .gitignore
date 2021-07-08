@@ -2,3 +2,5 @@ bootstrap
 bootstrap.old
 tmp
 dist
+build
+upagekite.egg-info
