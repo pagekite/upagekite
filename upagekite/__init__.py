@@ -14,7 +14,7 @@ import select
 
 from .proto import asyncio, socket, ticks_ms, fuzzy_sleep_ms, print_exc
 from .proto import Kite, Frame, EofTunnelError, uPageKiteDefaults
-from .proto import SELECT_POLL_IN
+from .proto import SELECT_POLL_IN, IS_MICROPYTHON
 
 
 try:
@@ -419,7 +419,8 @@ class uPageKite:
     if len(self.kites) == 0:
       return relays
 
-    await self.uPK.check_fe_hint_url()
+    if IS_MICROPYTHON:
+      await self.uPK.check_fe_hint_url()
 
     for kite in self.kites:
       for a in await self.uPK.get_kite_addrinfo(kite):
