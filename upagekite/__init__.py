@@ -404,6 +404,11 @@ class uPageKite:
     self.reconfig_flag = False
 
   def reconfigure(self):
+    """
+    Call this method when changing .public or .keep_running,
+    to request early termination of internal loops. Also useful
+    if the caller knows network state has changed.
+    """
     self.reconfig_flag = True
     return self
 
@@ -435,7 +440,7 @@ class uPageKite:
 
     pings = [0] * len(relays)
     for i, relay_addr in enumerate(relays):
-      if not self.public or not self.keep_running:
+      if self.reconfig_flag:
         return []
       bias = 0.9 if (not i or relay_addr in preferred) else 1.0
       pings[i] = await self.uPK.ping_relay(relay_addr, bias)
@@ -455,7 +460,7 @@ class uPageKite:
     conns = []
     self.want_dns_update = [0]
     for relay in relays:
-      if not self.public or not self.keep_running:
+      if self.reconfig_flag:
         return conns  # Not [], to make sure cleanup is correct
       await fuzzy_sleep_ms()
       try:
@@ -554,7 +559,7 @@ class uPageKite:
     if 1 == self.want_dns_update[0]:
       self.want_dns_update[0] = recheck_max
       for kite in self.kites:
-        if not self.public or not self.keep_running:
+        if self.reconfig_flag:
           return relays, back_off  # Not [], to make sure cleanup is correct
         if self.uPK.trace:
           self.uPK.trace("Checking current DNS state for %s" % kite)
@@ -601,8 +606,11 @@ class uPageKite:
     back_off = 1
     relays = []
     while self.keep_running:
-      self.reconfig_flag = False
       now = int(time.time())
+      if self.reconfig_flag:
+        next_check = now
+        self.reconfig_flag = False
+
       await self.tick(
         back_off=back_off,
         relays=len(relays),
