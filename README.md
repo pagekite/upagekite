@@ -41,12 +41,12 @@ develop simple web apps or APIs using this framework.
    * MicroPython 1.13 on an ESP32-WROOM-32 DevKitC board
    * MicroPython 1.13 on Ubuntu Linux
    * Python 3.7.5 on Ubuntu Linux
+* Adaptive relay selection (ESP32 relies on DNS hints from web)
+* Proxying to an external server (e2e TLS, SSH, ...)
 
 ### Not working yet:
 
 * Relay TLS certificate verification
-* Adaptive relay selection (ESP32 DNS lookups are too limited)
-* Proxying to an external (web)server
 
 See our [Github Issues](https://github.com/pagekite/upagekite/issues/) for
 details and a more complete list.

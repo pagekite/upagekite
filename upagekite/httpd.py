@@ -269,6 +269,9 @@ class HTTPD:
           req_env['http_headers']['_pathqs'],
           req_env['http_headers'])
 
+  def get_handler(self, path, headers):
+    return _HANDLERS.get(path, (None, None))
+
   async def handle_http_request(self, kite, conn, frame):
     method = path = '-'
     self.uPK.GC_COLLECT()
@@ -291,8 +294,11 @@ class HTTPD:
     except Exception as e:
       return await self._err(400, 'Invalid request', method, pathqs, conn, frame)
 
-    func, func_attrs = _HANDLERS.get(path, (None, None))
-    filename = self.webroot + path
+    try:
+      func, func_attrs = self.get_handler(path, headers)
+      filename = self.webroot + path
+    except PermissionError:
+      return await self._err(403, 'Access denied', method, pathqs, conn, frame)
 
     await fuzzy_sleep_ms()
     if func is None:
@@ -367,6 +373,8 @@ class HTTPD:
               'ttl': self.static_max_age}),
           first_reply, conn, frame, method, pathqs, headers, _close=[fd])
         fd = None
+    except PermissionError:
+      return await self._err(403, 'Access denied', method, pathqs, conn, frame)
     except Exception as e:
       if self.uPK.debug:
         print_exc(e)

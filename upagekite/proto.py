@@ -123,6 +123,7 @@ try:
       raise
 except ImportError:
   import socket
+  IOError = IOError
   async def sock_connect_stream(uPK, addr, ssl_wrap=False, timeouts=(20, 300)):
     if uPK.trace:
       uPK.trace('>>connect(%s, ssl_wrap=%s)' % (addr, ssl_wrap))
@@ -163,14 +164,19 @@ async def fuzzy_sleep_ms(ms=0):
 
 class Kite:
   def __init__(self, name, secret, proto='http', handler=None):
-    self.proto = proto
+    self.pproto = self.proto = proto
+    if self.proto[:3] == 'tls':
+      self.proto = 'https' + self.proto[3:]
+    elif self.proto[:3] == 'ssh':
+      self.proto = 'raw' + self.proto[3:]
+
     self.name = name
     self.secret = secret
     self.challenge = ''
     self.handler = handler
 
   def __str__(self):
-    return '%s://%s' % (self.proto, self.name)
+    return '%s://%s' % (self.pproto, self.name)
 
 
 class Frame:
@@ -190,6 +196,7 @@ class Frame:
   eof = property(lambda s: s.headers.get('EOF', ''))
   sid = property(lambda s: s.headers.get('SID'))
   uid = property(lambda s: s.cid + s.headers.get('SID'))
+  tls = property(lambda s: s.headers.get('RTLS'))
   host = property(lambda s: s.headers.get('Host'))
   port = property(lambda s: s.headers.get('Port'))
   proto = property(lambda s: s.headers.get('Proto'))

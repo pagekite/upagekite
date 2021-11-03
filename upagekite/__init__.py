@@ -38,15 +38,18 @@ class LocalHTTPKite(Kite):
     Kite.__init__(self, name, secret, 'http', handler)
     self.listening_port = listen_on
     self.handlers = {}
-    try:
-      self.fd = socket.socket()
-      self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-      self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
-      self.fd.listen(5)
-    except Exception as e:
-      print_exc(e)
-      print("Oops, binding socket failed: %s" % e)
-      self.fd = None
+    if isinstance(listen_on, int):
+      try:
+        self.fd = socket.socket()
+        self.fd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
+        self.fd.listen(5)
+      except Exception as e:
+        print_exc(e)
+        print("Oops, binding socket failed: %s" % e)
+        self.fd = None
+    else:
+      self.fd = listen_on
     self.conns = {}
 
   def __str__(self):
@@ -239,7 +242,7 @@ class uPageKiteConn:
     return self
 
   def __str__(self):
-    return "<uPageKiteConn(%s)>" % self.ip
+    return "<uPageKiteConn(%s)=%s>" % (self.ip, self.fd.fileno())
 
   def sync_reply(self, frame, data=None, eof=True):
     uPK = self.pk.uPK
@@ -308,8 +311,9 @@ class uPageKiteConn:
               del self.handlers[frame.sid]
 
         elif frame.sid and frame.host and frame.proto:
+          p_p = '%s-%s' % (frame.proto, frame.port)
           for kite in self.pk.kites:
-            if kite.name == frame.host and kite.proto == frame.proto:
+            if kite.name == frame.host and kite.proto in (p_p, frame.proto):
               # FIXME: We should allow the handler to return a callback
               #        for any subsequent data with the same SID, to
               #        allow for uploads or bidirectional comms.
