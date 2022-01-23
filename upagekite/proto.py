@@ -207,7 +207,7 @@ class Frame:
 class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
-  APPVER = '0.2.2u'
+  APPVER = '0.2.3u'
   PARSE_HTTP_HEADERS = re.compile(
     '^(Authorization'
     '|Co(n(nection|tent-\S+)|okie)'
