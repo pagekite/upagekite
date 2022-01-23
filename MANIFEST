@@ -6,6 +6,7 @@ upagekite/__main__.py
 upagekite/captive.py
 upagekite/httpd.py
 upagekite/proto.py
+upagekite/proxy.py
 upagekite/web.py
 upagekite/web_mpfd.py
 upagekite/websocket.py

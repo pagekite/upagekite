@@ -1,3 +1,13 @@
+# Publish to pip cheat-sheet:
+#
+#    1. Commit, Tag
+#    2. git push, git push --tags
+#    3. rm dist/*
+#    4. python3 setup.py sdist
+#    5. python3 setup.py bdist_wheel --universal
+#    6. twine upload dist/*
+#
+import setuptools
 from distutils.core import setup
 setup(
   name = 'upagekite',
