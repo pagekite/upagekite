@@ -45,6 +45,7 @@ class LocalHTTPKite(Kite):
         self.fd.bind(socket.getaddrinfo('0.0.0.0', listen_on)[0][-1])
         self.fd.listen(5)
       except Exception as e:
+        # FIXME: This should go through our logging
         print_exc(e)
         print("Oops, binding socket failed: %s" % e)
         self.fd = None
@@ -61,7 +62,9 @@ class LocalHTTPKite(Kite):
       sock, client = self.conns[frame.sid]
     except KeyError:
       if data or not eof:
-        print('**BUG?**  sync_reply(sid=%s), no conn found.' % frame.sid)
+        if frame.uPK.error:
+          frame.uPK.error(
+            '**BUG?**  sync_reply(sid=%s), no conn found.' % frame.sid)
         raise
     if data:
       data = bytes(data, 'latin-1') if (isinstance(data, str)) else data
@@ -515,15 +518,17 @@ class uPageKite:
     except KeyboardInterrupt:
       raise
     except Exception as e:
-      print_exc(e)
-      print('Oops, relay_loop: %s(%s)' % (type(e), e))
+      if self.uPK.debug:
+        print_exc(e)
+        self.uPK.debug('Oops, relay_loop: %s(%s)' % (type(e), e))
 
     # We've fallen through to our unhappy ending, clean up
     for conn in conns:
       try:
         conn.close()
       except Exception as e:
-        print("Oops, close(%s): %s" % (conn, e))
+        if self.uPK.debug:
+          self.uPK.debug("Oops, close(%s): %s" % (conn, e))
     return False
 
   # This is easily overridden by subclasses
