@@ -27,6 +27,9 @@ from hashlib import sha1
 from struct import unpack
 
 
+# This is also used by setup.py
+UPAGEKITE_VERSION = '0.2.4'
+
 # This is a cache of DNS hints we have recived from the network.
 _DNS_HINTS = {}
 
@@ -207,7 +210,7 @@ class Frame:
 class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
-  APPVER = '0.2.3u'
+  APPVER = UPAGEKITE_VERSION+'u'
   PARSE_HTTP_HEADERS = re.compile(
     '^(Authorization'
     '|Co(n(nection|tent-\S+)|okie)'
