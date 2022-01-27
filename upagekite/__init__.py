@@ -69,9 +69,15 @@ class LocalHTTPKite(Kite):
     if data:
       data = bytes(data, 'latin-1') if (isinstance(data, str)) else data
       sock.setblocking(True)
-      client.write(data)
-      if hasattr(client, 'flush'):
-        client.flush()
+      try:
+        client.write(data)
+        if hasattr(client, 'flush'):
+          client.flush()
+      except (OSError, IOError) as e:
+        # Assume just this connection is broken, trigger cleanup logic.
+        eof = True
+        if frame.uPK.debug:
+          frame.uPK.debug('Closing %s, write failed: %s' % (frame.sid, e))
     if eof:
       if frame.sid in self.handlers:
         del self.handlers[frame.sid]
