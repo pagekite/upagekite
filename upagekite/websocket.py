@@ -226,7 +226,8 @@ class WebsocketStream(object):
     buf = bytes(buf)
 
     if self.uPK.trace:
-      self.uPK.trace('[ws] Send %s %d/%s' % (self.frame.uid, opcode, buf))
+      self.uPK.trace('[ws] Send %s opcode=%d len=%d: %s'
+        % (self.frame.uid, opcode, len(buf), buf[:128]))
 
     await self.conn.reply(self.frame, buf, eof=False)
 

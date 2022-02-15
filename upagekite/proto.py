@@ -244,8 +244,8 @@ class uPageKiteDefaults:
   # memory on the ESP32. In particular, the send window may not be much
   # larger than FILE_READ_BYTES; so those must be raised together and
   # that will in turn effect RAM usage. This limits performance.
-  SEND_WINDOW_BYTES = (1500 if IS_MICROPYTHON else 16384)
-  FILE_READ_BYTES = (1500 if IS_MICROPYTHON else 4*1500) - 64
+  SEND_WINDOW_BYTES = (1499 if IS_MICROPYTHON else 112909)
+  FILE_READ_BYTES = (1499 if IS_MICROPYTHON else 112909) - 64
   MS_DELAY_PER_BYTE = (0.025 if IS_MICROPYTHON else 0.005)
 
   WEBSOCKET_MASK = lambda: b'\0\0\0\0'
@@ -435,16 +435,19 @@ class uPageKiteDefaults:
   def sync_send(cls, conn, data):
     data = bytes(data, 'utf-8') if isinstance(data, str) else data
     if cls.trace:
-      cls.trace(']> %s' % data)
-    conn.write(data)
+      cls.trace(']>[%d] %s' % (len(data), data[:24]))
+    for chunk in range(0, len(data), self.SEND_WINDOW_BYTES):
+      conn.write(data[chunk:chunk+self.SEND_WINDOW_BYTES])
     if hasattr(conn, 'flush'):
       conn.flush()
 
   @classmethod
   async def send(cls, conn, data):
     data = bytes(data, 'utf-8') if isinstance(data, str) else data
-    conn.write(data)
-    await cls.network_send_sleep(len(data))
+    for chunk in range(0, len(data), self.SEND_WINDOW_BYTES):
+      # FIXME: Make this actually async!
+      conn.write(data[chunk:chunk+self.SEND_WINDOW_BYTES])
+      await cls.network_send_sleep(min(len(data), self.SEND_WINDOW_BYTES))
     if hasattr(conn, 'flush'):
       conn.flush()
     if cls.trace:

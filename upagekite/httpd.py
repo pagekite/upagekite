@@ -68,7 +68,7 @@ def filename_to_mimetype(fn):
 
 
 # Helper for iterating over chunks of a buffer
-def _buffer_byte_chunks(buf, chunksize):
+def buffer_byte_chunks(buf, chunksize):
   start, end = 0, min(len(buf), chunksize)
   while start < len(buf):
     data = buf[start:end]
@@ -210,7 +210,7 @@ class HTTPD:
         # our ESP32 devices to run out of RAM and break the connection.
         conn.await_data(self.uPK, frame.sid, beware_eof)
         for app_data in iterator:
-          for data in _buffer_byte_chunks(app_data, self.uPK.SEND_WINDOW_BYTES):
+          for data in buffer_byte_chunks(app_data, self.uPK.SEND_WINDOW_BYTES):
             await fuzzy_sleep_ms(5)
             if saw_eof[0]:
               break
