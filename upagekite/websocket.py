@@ -155,7 +155,7 @@ class Websocket(object):
           message = str(message, 'utf-8')
         if self.uPK.trace:
           self.uPK.trace('[ws/%s] Received %s %d/%s'
-            % (self.ws_id, frame.uid, opcode, message))
+            % (self.ws_id, frame.uid, opcode or 0, message))
         await self.message_handler(opcode, message, wss, self)
 
   async def broadcast(self, msg, opcode=OPCODES.TEXT, only=None):
@@ -177,7 +177,7 @@ class WebsocketStream(object):
   HEADER_OPC = 0xf
 
   MASKING_BIT = (1 << 7)
-  LENGTH_MASK = (0xef)
+  LENGTH_MASK = 0xff - MASKING_BIT
 
   LENGTH_7 = 0x7e
   LENGTH_16 = 1 << 16
@@ -250,8 +250,8 @@ class WebsocketStream(object):
             yield (opcode, message)
             self.buffer = self.buffer[offset:]
             opcode, message, offset = None, b'', 0
-      else:
-        print('FIXME: handle control frame %s' % opc)
+        else:
+          print('FIXME: handle control frame %s' % opc)
     except (KeyError, IndexError):
       pass
 
@@ -263,10 +263,10 @@ class WebsocketStream(object):
 
     offset = 2
     if length == 0x7e:
-      length = struct.unpack('!H', self.buffer[base+2:base+4])
+      length = struct.unpack('!H', self.buffer[base+2:base+4])[0]
       offset = 4
     elif length == 0x7f:
-      length = struct.unpack('!Q', self.buffer[base+2:base+10])
+      length = struct.unpack('!Q', self.buffer[base+2:base+10])[0]
       offset = 10
 
     if masking:
