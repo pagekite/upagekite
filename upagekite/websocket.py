@@ -32,11 +32,16 @@ _WEBSOCKETS = {}
 
 # Decorator for creating a websocket and registering the handler for
 # incoming messages.
-def websocket(ws_id=None, strict_origin=True):
+def websocket(ws_id=None, strict_origin=True, auth_check=None):
   def decorate(message_handler):
     async def url_handler(req_env):
-      hdrs = req_env['http_headers']
+      if auth_check is not None:
+          try:
+              auth_check(req_env)
+          except PermissionError:
+              return {'code': 403, 'msg': 'Access Denied'}
 
+      hdrs = req_env['http_headers']
       if ((hdrs.get('Upgrade', '').lower() != 'websocket')
           or (not hdrs.get('Sec-WebSocket-Key'))
           or (hdrs.get('Sec-WebSocket-Protocol'))  # Unsupported!
