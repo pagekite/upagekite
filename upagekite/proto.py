@@ -444,10 +444,10 @@ class uPageKiteDefaults:
   @classmethod
   async def send(cls, conn, data):
     data = bytes(data, 'utf-8') if isinstance(data, str) else data
-    for chunk in range(0, len(data), self.SEND_WINDOW_BYTES):
+    for chunk in range(0, len(data), cls.SEND_WINDOW_BYTES):
       # FIXME: Make this actually async!
-      conn.write(data[chunk:chunk+self.SEND_WINDOW_BYTES])
-      await cls.network_send_sleep(min(len(data), self.SEND_WINDOW_BYTES))
+      conn.write(data[chunk:chunk+cls.SEND_WINDOW_BYTES])
+      await cls.network_send_sleep(min(len(data), cls.SEND_WINDOW_BYTES))
     if hasattr(conn, 'flush'):
       conn.flush()
     if cls.trace:
