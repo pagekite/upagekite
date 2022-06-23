@@ -441,8 +441,8 @@ class uPageKiteDefaults:
     data = bytes(data, 'utf-8') if isinstance(data, str) else data
     if cls.trace:
       cls.trace(']>[%d] %s' % (len(data), data[:24]))
-    for chunk in range(0, len(data), self.SEND_WINDOW_BYTES):
-      conn.write(data[chunk:chunk+self.SEND_WINDOW_BYTES])
+    for chunk in range(0, len(data), cls.SEND_WINDOW_BYTES):
+      conn.write(data[chunk:chunk+cls.SEND_WINDOW_BYTES])
     if hasattr(conn, 'flush'):
       conn.flush()
 
