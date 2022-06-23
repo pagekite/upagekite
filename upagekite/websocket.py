@@ -11,7 +11,7 @@
 import struct
 from hashlib import sha1
 
-from .proto import asyncio, fuzzy_sleep_ms
+from .proto import EofStream, asyncio, fuzzy_sleep_ms
 
 try:
   from ubinascii import b2a_base64
@@ -150,13 +150,19 @@ class Websocket(object):
       self.unsubscribe(frame.uid)
       await self.message_handler(None, None, wss, self, eof=True)
     else:
-      for opcode, message in wss.process(frame.payload):
-        if opcode == OPCODES.TEXT:
-          message = str(message, 'utf-8')
-        if self.uPK.trace:
-          self.uPK.trace('[ws/%s] Received %s %d/%s'
-            % (self.ws_id, frame.uid, opcode or 0, message))
-        await self.message_handler(opcode, message, wss, self)
+      try:
+        for opcode, message in wss.process(frame.payload):
+          if opcode == OPCODES.TEXT:
+            message = str(message, 'utf-8')
+          if self.uPK.trace:
+            self.uPK.trace('[ws/%s] Received %s %d/%s'
+              % (self.ws_id, frame.uid, opcode or 0, message))
+          if opcode == OPCODES.PING:
+            await wss.send(message, OPCODES.PONG)
+          else:
+            await self.message_handler(opcode, message, wss, self)
+      except EofStream:
+        await self.message_handler(None, None, wss, self, eof=True)
 
   async def broadcast(self, msg, opcode=OPCODES.TEXT, only=None):
     msg = bytes(msg, 'utf-8') if (isinstance(msg, str)) else msg
@@ -242,7 +248,7 @@ class WebsocketStream(object):
       opcode, message, offset = None, b'', 0
       while True:
         fin, opc, data, offset = self.extract_frame(offset)
-        if opc in (OPCODES.TEXT, OPCODES.BINARY, OPCODES.CONT):
+        if opc in (OPCODES.TEXT, OPCODES.BINARY, OPCODES.CONT, OPCODES.PING):
           if opc != OPCODES.CONT:
             opcode = opc
           message += data
@@ -250,6 +256,8 @@ class WebsocketStream(object):
             yield (opcode, message)
             self.buffer = self.buffer[offset:]
             opcode, message, offset = None, b'', 0
+        elif opc == OPCODES.CLOSE:
+          raise EofStream()
         else:
           print('FIXME: handle control frame %s' % opc)
     except (KeyError, IndexError):

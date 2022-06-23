@@ -162,6 +162,9 @@ class RejectedError(ValueError):
 class EofTunnelError(IOError):
   pass
 
+class EofStream(IOError):
+  pass
+
 
 async def fuzzy_sleep_ms(ms=0):
   real_sleep_ms(1)
