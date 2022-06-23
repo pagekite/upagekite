@@ -37,6 +37,10 @@ _DNS_HINTS = {}
 SENT_COUNTER = 0
 SENT_DELAYS = 0
 
+# Prefixes to search when trying to open() files from within the webapp.
+APP_ROOT_PREFIXES = ('/bootstrap_live', '/bootstrap', '')
+
+
 
 try:
     import uasyncio as asyncio
@@ -143,12 +147,13 @@ except ImportError:
 
 
 def upk_open(path, mode='r'):
-  for root in ('/bootstrap_live', '/bootstrap', ''):
+  ose = ''
+  for root in APP_ROOT_PREFIXES:
     try:
       return open(root + path, mode)
-    except OSError:
-      pass
-  raise
+    except OSError as e:
+      ose = e
+  raise OSError(ose)
 
 
 class RejectedError(ValueError):
