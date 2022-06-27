@@ -234,7 +234,7 @@ class uPageKiteDefaults:
     '|Orig'
     '|Sec-Web'
     '|Upgrade'
-    '|User-Agent)\S+:')
+    '|User-Agent)[^\s:]*:')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
