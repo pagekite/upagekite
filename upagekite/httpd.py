@@ -88,6 +88,13 @@ def _read_fd_iterator(fd, readsize, first_item=None):
     else:
       break
 
+
+def _items(obj):
+  if hasattr(obj, 'items'):
+    return obj.items()
+  return obj
+
+
 # Helper class for navigating the request environment
 class ReqEnv:
   def __init__(self, env):
@@ -112,9 +119,9 @@ class ReqEnv:
 
   # Details about the HTTP request
   post_data = property(lambda s: s['http_headers'].get('_post_data', {}))
-  # Note: micropython needs .items() here
-  post_vars = property(lambda s: dict(s.post_data.items()))
-  query_vars = property(lambda s: dict(s['http_headers']['_qs'].items()))
+  # Note: micropython needs _items() here
+  post_vars = property(lambda s: dict(_items(s.post_data)))
+  query_vars = property(lambda s: dict(_items(s['http_headers']['_qs'])))
   query_tuples = property(lambda s: s['http_headers']['_qs'])
   request_path = property(lambda s: s['http_headers']['_path'])
   http_method = property(lambda s: s['http_headers']['_method'])
