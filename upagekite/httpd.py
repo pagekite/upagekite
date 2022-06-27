@@ -152,6 +152,15 @@ class HTTPD:
       for pair in qs.split('&')]
 
   def http_response(self, code, msg, mimetype, ttl=None, hdrs={}):
+    for hdr, default in (
+            ('Access-Control-Allow-Origin', self.uPK.HTTP_CORS_ORIGIN),
+            ('Access-Control-Allow-Methods', self.uPK.HTTP_CORS_METHODS),
+            ('Access-Control-Allow-Headers', self.uPK.HTTP_CORS_HEADERS),
+            ('Content-Security-Policy', self.uPK.HTTP_CONTENT_SECURITY_POLICY),
+            ('Referrer-Policy', self.uPK.HTTP_REFERRER_POLICY)):
+        if default:
+            if hdr not in hdrs:
+                hdrs[hdr] = default
     return (
         'HTTP/%s %d %s\r\n'
         'Server: %s\r\n'
@@ -160,7 +169,7 @@ class HTTPD:
         '1.1' if ('Upgrade' in hdrs) else '1.0',
         code, msg, self.uPK.APPURL,
         ('Content-Type: %s\r\n' % mimetype) if mimetype else '',
-        ('Cache-Control: max-age=%d\r\n' % ttl) if ttl else '',
+        ('Cache-Control: max-age=%d, private\r\n' % ttl) if ttl else '',
         ''.join('%s: %s\r\n' % (k, v) for k, v in hdrs.items()))
 
   def log_request(self, frame, method, path, code,

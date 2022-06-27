@@ -242,6 +242,13 @@ class uPageKiteDefaults:
   TOKEN_LENGTH = 36
   WITH_SSL = (ssl is not False)
 
+  # Default HTTP Security headers
+  HTTP_CONTENT_SECURITY_POLICY = "default-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  HTTP_REFERRER_POLICY = 'same-origin'
+  HTTP_CORS_ORIGIN = None
+  HTTP_CORS_METHODS = None
+  HTTP_CORS_HEADERS = None
+
   # These are used to compensate for Micropython/ESP32 having
   # an overly dumb DNS implementation.
   FE_HINT_NAME = 'fe.b5p.us'
