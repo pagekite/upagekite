@@ -247,6 +247,7 @@ def handle_big_request(handler, env, max_bytes=None, _async=False, csrf=True):
   (ctype, cattrs) = parse_hdr(headers.get('Content-Type', 'text/plain'))
   if ctype == 'application/json':
     parser_cls = ParseJSON
+    csrf = False
   elif ctype == 'application/x-www-form-urlencoded':
     parser_cls = ParseWFUE
   elif ctype == 'multipart/form-data':
