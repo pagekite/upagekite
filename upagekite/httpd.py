@@ -89,18 +89,32 @@ def _read_fd_iterator(fd, readsize, first_item=None):
       break
 
 # Helper class for navigating the request environment
-class ReqEnv(dict):
+class ReqEnv:
+  def __init__(self, env):
+    self.env = env
+
+  def __setitem__(self, *a, **kwa): return self.env.__setitem__(*a, **kwa)
+  def __getitem__(self, *a, **kwa): return self.env.__getitem__(*a, **kwa)
+  def __delitem__(self, *a, **kwa): return self.env.__delitem__(*a, **kwa)
+  def __iter__(self, *a, **kwa): return self.env.__iter__(*a, **kwa)
+  def update(self, *a, **kwa): return self.env.update(*a, **kwa)
+  def values(self, *a, **kwa): return self.env.values(*a, **kwa)
+  def items(self, *a, **kwa): return self.env.items(*a, **kwa)
+  def keys(self, *a, **kwa): return self.env.keys(*a, **kwa)
+  def get(self, *a, **kwa): return self.env.get(*a, **kwa)
+
   # Details about the client
-  remote_ip = property(lambda s: s['frame'].remote_ip)
+  remote_ip = property(lambda s: s.env['frame'].remote_ip)
   is_local = property(lambda s: (
     s.remote_ip.startswith('127.') or
     s.remote_ip.startswith('::ffff:127.') or
     s.remote_ip == '::1'))
 
   # Details about the HTTP request
-  post_vars = property(lambda s: dict(s['http_headers'].get('_post_data', [])))
   post_data = property(lambda s: s['http_headers'].get('_post_data', {}))
-  query_vars = property(lambda s: dict(s['http_headers']['_qs']))
+  # Note: micropython needs .items() here
+  post_vars = property(lambda s: dict(s.post_data.items()))
+  query_vars = property(lambda s: dict(s['http_headers']['_qs'].items()))
   query_tuples = property(lambda s: s['http_headers']['_qs'])
   request_path = property(lambda s: s['http_headers']['_path'])
   http_method = property(lambda s: s['http_headers']['_method'])
@@ -371,16 +385,16 @@ class HTTPD:
           'postpone_action': postpone_action,
           'http_headers': headers}
         req_env.update(self.base_env)
+        # FIXME: This is a bit dumb.
+        req_env['req_env'] = ReqEnv(req_env)
         if fd:
           await fuzzy_sleep_ms(25)
           code = str(fd.read(), 'utf-8')
           self.uPK.GC_COLLECT()
-          req_env['req_env'] = ReqEnv(req_env)
           exec(code, req_env)
-          del req_env['req_env']
         else:
           await fuzzy_sleep_ms()
-          await self.run_handler(func, func_attrs, ReqEnv(req_env))
+          await self.run_handler(func, func_attrs, req_env['req_env'])
       else:
         filesize = size(filename)
         await self.background_send(

@@ -1,7 +1,7 @@
 # This file from the uPageKite distribution is placed in the Public Domain.
 # Remix at will!
 
-from upagekite.web import handle_big_request
+from upagekite.web import csrf_input, handle_big_request, access_requires
 
 def respond():
   send_http_response(
@@ -22,6 +22,7 @@ def respond():
     <input type="file" name="upload"><br>
     <input type="text" name="comments"><br>
     <input type="submit" value="Upload" name="submit">
+    %s
    </form>
   </div>
   <p>[ <a href="/">back to top</a> ]</p>
@@ -31,6 +32,8 @@ def respond():
   open('/webroot/default.css').read(),  # Inline the CSS
   kite.name,
   frame.remote_ip,
+  csrf_input(),
   http_headers))
 
+access_requires(req_env, methods=('GET', 'POST'))
 handle_big_request(respond, globals())

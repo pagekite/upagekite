@@ -199,7 +199,7 @@ variable so your code can make use of it.
     # Copyright (C) 2020, Foocorp Supergadgets
     # A Useful Comment
     #
-    from upagekite.web import handle_big_request
+    from upagekite.web import handle_big_request, access_requires
     import yourlib
     import json
 
@@ -215,6 +215,7 @@ variable so your code can make use of it.
             body=response_data
         )
 
+    access_requires(req_env, csrf=False)    # Note: Might be dangerous!
     handle_big_request(handler, globals())
 
 
@@ -224,6 +225,8 @@ variable so your code can make use of it.
 -----------------------------------------------------------------------
 ## Access controls and authentication
 
+TODO: Write more about access controls; we have a bunch of security
+behaviours now, including CSRF which defaults to on for POST requests.
 
     from upagekite.web import access_requires
 

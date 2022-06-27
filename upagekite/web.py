@@ -9,12 +9,26 @@
 # for more details.
 
 try:
-  from ubinascii import a2b_base64
+  from ubinascii import a2b_base64, b2a_base64
 except (NameError, ImportError):
-  from binascii import a2b_base64
+  from binascii import a2b_base64, b2a_base64
 
 
-from .proto import asyncio, PermissionError
+from .proto import random_bytes, asyncio, PermissionError
+
+
+CSRF_CODES = []
+CSRF_MAX = 30
+
+def csrf_value():
+    global CSRF_CODES
+    secret = str(b2a_base64(random_bytes(8)), 'utf-8').strip().replace('=', '')
+    CSRF_CODES = CSRF_CODES[-CSRF_MAX:]
+    CSRF_CODES.append(secret)
+    return secret
+
+def csrf_input():
+    return '<input type="hidden" name="upk_csrf" value="%s">' % csrf_value()
 
 
 # Decorator for making functions handle POSTed data
@@ -48,6 +62,7 @@ def access_requires(req_env,
     methods=None,
     local=False,
     secure_transport=False,
+    csrf=True,
     auth=False,
     auth_check=None,
     ip_check=None):
@@ -67,6 +82,9 @@ def access_requires(req_env,
 
   If the Authorization method is 'basic', the data is a (username, password)
   pair. Otherwise it is the raw data from the Authorization HTTP header.
+
+  This method can discable CSRF checks for HTTP POST uploads, which are
+  otherwise enabled by default.
   """
   if methods and (req_env.http_method not in methods):
     raise PermissionError('Unsupported method')
@@ -80,6 +98,9 @@ def access_requires(req_env,
 
   if ip_check is not None and not ip_check(req_env.remote_ip):
     raise PermissionError('Access denied')
+
+  # This check is deferred until POSTed data has been parsed
+  req_env['_csrf_disabled'] = not (csrf and req_env.http_method == 'POST')
 
   # Setting the code to 401, prompts the error handling code to add the
   # WWW-Authentication header to the response, so users can log in.
@@ -111,6 +132,7 @@ def http_require(
     methods=None,
     local=False,
     secure_transport=False,
+    csrf=True,
     auth=False,
     auth_check=None,
     ip_check=None):
@@ -120,7 +142,7 @@ def http_require(
   def decorate(func):
     def http_require_wrapper(req_env):
       access_requires(req_env,
-        methods, local, secure_transport, auth, auth_check, ip_check)
+        methods, local, secure_transport, csrf, auth, auth_check, ip_check)
       return func(req_env)
     return http_require_wrapper
   return decorate
@@ -198,6 +220,8 @@ class ParseJSON(ParseNull):
 def handle_big_request(handler, env, max_bytes=None, _async=False):
   uPK = env['httpd'].uPK
   frame = env['frame']
+  req_env = env['req_env']
+
   if frame.payload:
     hdr, frame.payload = frame.payload.split(b'\r\n\r\n', 1)
     if uPK.trace:
@@ -230,15 +254,24 @@ def handle_big_request(handler, env, max_bytes=None, _async=False):
   else:
     parser_cls = ParseNull
 
+  def check_csrf():
+    if not req_env.get('_csrf_disabled'):
+      csrf_code = req_env.post_vars.get('upk_csrf', None)
+      if not csrf_code or csrf_code['value'] not in CSRF_CODES:
+        env['send_http_response'](code=403, msg='Invalid CSRF')
+        return False
+    return True
+
   headers['_post_data'] = PostVars()
   parser = parser_cls(uPK, frame, headers, cattrs)
   uPK.GC_COLLECT()
   if not needed_bytes:
     del parser
-    if _async:
-      asyncio.get_event_loop().create_task(handler())
-    else:
-      handler()
+    if check_csrf():
+      if _async:
+        asyncio.get_event_loop().create_task(handler())
+      else:
+        handler()
     return None
 
   conn = env['conn']
@@ -256,10 +289,11 @@ def handle_big_request(handler, env, max_bytes=None, _async=False):
         del conn.handlers[frame.sid]
       if uPK.trace and frame.payload:
         uPK.trace('<<%s' % frame.payload)
-      if _async:
-        await handler()
-      else:
-        handler()
+      if check_csrf():
+        if _async:
+          await handler()
+        else:
+          handler()
 
   conn.async_await_data(uPK, frame.sid, update_frame, needed_bytes[0])
   return None
