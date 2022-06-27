@@ -28,7 +28,7 @@ send_http_response("""\
   <p>The device should broadcast its own WiFi network for reconfiguration soon.</p>
   <p>[ <a href="/">back to top</a> ]</p>
 </body></html>
-""" % (open('bootstrap/webroot/default.css').read(),))
+""" % (open('/webroot/default.css').read(),))
 
 time.sleep(2)
 machine.reset()

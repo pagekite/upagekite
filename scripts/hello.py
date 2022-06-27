@@ -40,10 +40,9 @@ class myPageKiteSettings(uPageKiteDefaults):
 
 def check_userpass(method, data):
     if method != 'basic':
-        raise PermissionError(401, 'Please log in')
+        return False
     username, password = data
-    if not USERS.get(username, False) == password:
-        raise PermissionError(401, 'Invalid username/password')
+    return (USERS.get(username, False) == password)
 
 
 # Register a simple handler for our dynamic hello page

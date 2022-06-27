@@ -2,9 +2,15 @@
 # Remix at will!
 
 import time
-import machine
 
-# FIXME: This would be a good place to demo HTTP authentication?
+from upagekite.web import access_requires
+
+
+if not req_env.is_local:
+  access_requires(req_env,
+    auth='basic',
+    auth_check=lambda m,up: up == ('root', 'testing'))
+
 
 send_http_response("""\
 <html><head>
@@ -25,7 +31,9 @@ send_http_response("""\
   <p>Rebooting in 2 seconds... page refresh in <span id=t>60s</span>.</p>
   <p>[ <a href="/">back to top</a> ]</p>
 </body></html>
-""" % (open('bootstrap/webroot/default.css').read(),))
+""" % (open('/webroot/default.css').read(),))
 
 time.sleep(2)
+
+import machine
 machine.reset()

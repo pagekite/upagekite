@@ -229,7 +229,7 @@ variable so your code can make use of it.
 
     ...
 
-    access_requires(globals(),
+    access_requires(req_env,
         methods=('GET', 'POST'),   # Disallowing GET is often smart
         local=False,               # Set true to allow only localhost clients
         secure_transport=True,     # Require localhost or TLS

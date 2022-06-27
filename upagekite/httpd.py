@@ -91,6 +91,10 @@ def _read_fd_iterator(fd, readsize, first_item=None):
 class ReqEnv(dict):
   # Details about the client
   remote_ip = property(lambda s: s['frame'].remote_ip)
+  is_local = property(lambda s: (
+    s.remote_ip.startswith('127.') or
+    s.remote_ip.startswith('::ffff:127.') or
+    s.remote_ip == '::1'))
 
   # Details about the HTTP request
   post_vars = property(lambda s: dict(s['http_headers'].get('_post_data', [])))
@@ -361,7 +365,9 @@ class HTTPD:
           await fuzzy_sleep_ms(25)
           code = str(fd.read(), 'utf-8')
           self.uPK.GC_COLLECT()
+          req_env['req_env'] = ReqEnv(req_env)
           exec(code, req_env)
+          del req_env['req_env']
         else:
           await fuzzy_sleep_ms()
           await self.run_handler(func, func_attrs, ReqEnv(req_env))

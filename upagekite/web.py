@@ -61,8 +61,7 @@ def access_requires(req_env,
 
   The auth_check and ip_check arguments, if provided, are functions which
   can be used to validate the provided Authorization data, or the remote
-  IP address respectively. They should raise a PermissionError if access
-  should be denied.
+  IP address respectively. They should return True if access is granted.
 
   They are invoked as auth_check(method, data) and ip_check(remote_ip).
 
@@ -72,19 +71,18 @@ def access_requires(req_env,
   if methods and (req_env.http_method not in methods):
     raise PermissionError('Unsupported method')
 
-  if (local or secure_transport) and not (
-      req_env.remote_ip.startswith('127.') or
-      req_env.remote_ip.startswith('::ffff:127.') or
-      req_env.remote_ip == '::1'):
+  if (local or secure_transport) and not req_env.is_local:
     if local:
       raise PermissionError(
         'Method is localhost-only, got %s' % req_env.remote_ip)
     if secure_transport and not req_env.frame.tls:
       raise PermissionError('Method requires TLS or localhost')
 
-  if ip_check is not None:
-    ip_check(req_env.remote_ip)
+  if ip_check is not None and not ip_check(req_env.remote_ip):
+    raise PermissionError('Access denied')
 
+  # Setting the code to 401, prompts the error handling code to add the
+  # WWW-Authentication header to the response, so users can log in.
   code = 401 if ('basic' in (auth or '')) else 403
   if 'Authorization' in req_env.http_headers:
     try:
@@ -98,8 +96,8 @@ def access_requires(req_env,
         data = _parse_basic_auth(data)
 
       req_env['auth_%s' % meth] = data
-      if auth_check is not None:
-        auth_check(meth, data)
+      if auth_check is not None and not auth_check(meth, data):
+        raise PermissionError(code, 'Invalid authorization')
     except PermissionError:
       raise
     except:

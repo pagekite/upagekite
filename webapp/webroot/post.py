@@ -28,7 +28,7 @@ def respond():
   <p>Request details: %s</p>
 </body></html>
 """) % (
-  open('bootstrap/webroot/default.css').read(),  # Inline the CSS
+  open('/webroot/default.css').read(),  # Inline the CSS
   kite.name,
   frame.remote_ip,
   http_headers))
