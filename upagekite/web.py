@@ -8,6 +8,12 @@
 # Commercial licenses are for sale. See the files README.md and COPYING.txt
 # for more details.
 
+try:
+  from ubinascii import a2b_base64
+except (NameError, ImportError):
+  from binascii import a2b_base64
+
+
 from .proto import asyncio
 
 
@@ -31,6 +37,94 @@ def process_post(max_bytes=None, _async=False):
       return async_post_wrapper
     else:
       return post_wrapper
+  return decorate
+
+
+def _parse_basic_auth(data):
+  return tuple(str(a2b_base64(data), 'utf-8').split(':', 1))
+
+
+def access_requires(req_env,
+    methods=None,
+    local=False,
+    secure_transport=False,
+    auth=False,
+    auth_check=None,
+    ip_check=None):
+  """
+  Require the connection fulfill certain criteria, raising a PermissionError
+  otherwise. As a side effect, this method will parse the Authorization
+  header and set req_env['auth_bearer'] or req_env['auth_basic'] if present.
+
+  Requesting a secure transport requires the connection either originate
+  on localhost or use TLS encryption.
+
+  The auth_check and ip_check arguments, if provided, are functions which
+  can be used to validate the provided Authorization data, or the remote
+  IP address respectively. They should raise a PermissionError if access
+  should be denied.
+
+  They are invoked as auth_check(method, data) and ip_check(remote_ip).
+
+  If the Authorization method is 'basic', the data is a (username, password)
+  pair. Otherwise it is the raw data from the Authorization HTTP header.
+  """
+  if methods and (req_env.http_method not in methods):
+    raise PermissionError('Unsupported method')
+
+  if (local or secure_transport) and not (
+      req_env.remote_ip.startswith('127.') or
+      req_env.remote_ip.startswith('::ffff:127.') or
+      req_env.remote_ip == '::1'):
+    if local:
+      raise PermissionError(
+        'Method is localhost-only, got %s' % req_env.remote_ip)
+    if secure_transport and not req_env.frame.tls:
+      raise PermissionError('Method requires TLS or localhost')
+
+  if ip_check is not None:
+    ip_check(req_env.remote_ip)
+
+  code = 401 if ('basic' in (auth or '')) else 403
+  if 'Authorization' in req_env.http_headers:
+    try:
+      meth, data = req_env.http_headers['Authorization'].split(' ', 1)
+      meth = meth.strip().lower()
+      if auth and (meth not in auth):
+        raise PermissionError(code, 'Invalid authorization')
+
+      data = data.strip()
+      if meth == 'basic':
+        data = _parse_basic_auth(data)
+
+      req_env['auth_%s' % meth] = data
+      if auth_check is not None:
+        auth_check(meth, data)
+    except PermissionError:
+      raise
+    except:
+      raise PermissionError(code, 'Invalid authorization')
+  elif auth:
+    raise PermissionError(code, 'No authorization found')
+
+
+# Decorator for performing basic access controls
+def http_require(
+    methods=None,
+    local=False,
+    secure_transport=False,
+    auth=False,
+    auth_check=None,
+    ip_check=None):
+  """
+  Decorate an URL handler with access requirements. See require() for details.
+  """
+  def decorate(func):
+    def http_require_wrapper(req_env):
+      access_requires(req_env,
+        methods, local, secure_transport, auth, auth_check, ip_check)
+      return func(req_env)
+    return http_require_wrapper
   return decorate
 
 

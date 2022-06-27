@@ -169,7 +169,9 @@ class HTTPD:
 
   async def _err(self, code, msg, method, path, conn, frame, headers={}):
     self.log_request(frame, method, path, code, headers=headers)
-    await conn.reply(frame, self.http_response(code, msg, 'text/plain')+msg+'\n')
+    hdrs = {'WWW-Authenticate': 'Basic'} if (code == 401) else {}
+    await conn.reply(frame,
+      self.http_response(code, msg, 'text/plain', hdrs=hdrs)+msg+'\n')
 
   async def background_send(self,
         iterator, first_reply, conn, frame, method, path, hdrs, _close=[]):
@@ -297,8 +299,9 @@ class HTTPD:
     try:
       func, func_attrs = self.get_handler(path, headers)
       filename = self.webroot + path
-    except PermissionError:
-      return await self._err(403, 'Access denied', method, pathqs, conn, frame)
+    except PermissionError as e:
+      ec = e.errno if (e.errno) else 403
+      return await self._err(ec, 'Access denied', method, pathqs, conn, frame)
 
     await fuzzy_sleep_ms()
     if func is None:
@@ -373,8 +376,9 @@ class HTTPD:
               'ttl': self.static_max_age}),
           first_reply, conn, frame, method, pathqs, headers, _close=[fd])
         fd = None
-    except PermissionError:
-      return await self._err(403, 'Access denied', method, pathqs, conn, frame)
+    except PermissionError as e:
+      ec = e.errno if (e.errno) else 403
+      return await self._err(ec, 'Access denied', method, pathqs, conn, frame)
     except Exception as e:
       if self.uPK.debug:
         print_exc(e)

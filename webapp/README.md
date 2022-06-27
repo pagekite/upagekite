@@ -222,6 +222,21 @@ variable so your code can make use of it.
 
 
 -----------------------------------------------------------------------
+## Access controls and authentication
+
+
+    from upagekite.web import access_requires
+
+    ...
+
+    access_requires(globals(),
+        methods=('GET', 'POST'),   # Disallowing GET is often smart
+        local=False,               # Set true to allow only localhost clients
+        secure_transport=True,     # Require localhost or TLS
+        auth='basic')              # Require HTTP basic Auth
+
+
+-----------------------------------------------------------------------
 ## Periodic jobs
         
 (...work in progress...)
