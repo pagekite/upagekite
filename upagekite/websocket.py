@@ -11,7 +11,7 @@
 import struct
 from hashlib import sha1
 
-from .proto import EofStream, asyncio, fuzzy_sleep_ms
+from .proto import PermissionError, EofStream, asyncio, fuzzy_sleep_ms
 
 try:
   from ubinascii import b2a_base64

@@ -14,7 +14,7 @@ except (NameError, ImportError):
   from binascii import a2b_base64
 
 
-from .proto import asyncio
+from .proto import asyncio, PermissionError
 
 
 # Decorator for making functions handle POSTed data

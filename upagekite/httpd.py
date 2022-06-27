@@ -14,6 +14,7 @@ import time
 import json
 
 from .proto import print_exc, asyncio, ilistdir, upk_open, fuzzy_sleep_ms
+from .proto import PermissionError
 
 try:
   from uos import stat

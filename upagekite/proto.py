@@ -41,13 +41,18 @@ SENT_DELAYS = 0
 APP_ROOT_PREFIXES = ('/bootstrap_live', '/bootstrap', '')
 
 
-
 try:
     import uasyncio as asyncio
     IS_MICROPYTHON = True
 except ImportError:
     import asyncio
     IS_MICROPYTHON = False
+
+try:
+    from builtins import PermissionError
+except ImportError:
+    class PermissionError(OSError):
+        pass
 
 try:
     SELECT_POLL_IN = (select.POLLPRI | select.POLLIN)
@@ -219,13 +224,17 @@ class uPageKiteDefaults:
   APPNAME = 'uPageKite'
   APPURL = 'https://github.com/pagekite/upagekite'
   APPVER = UPAGEKITE_VERSION+'u'
+  # Warning: Micropython does not like large regexps, which is why this
+  #          one is annoyingly imprecise.
   PARSE_HTTP_HEADERS = re.compile(
-    '^(Authorization'
-    '|Co(n(nection|tent-\S+)|okie)'
+    '^(Auth'
+    '|Con[nt]'
+    '|Cook'
     '|Host'
-    '|Origin'
-    '|Sec-WebSocket-\S+'
-    '|U(pgrade|ser-Agent)):')
+    '|Orig'
+    '|Sec-Web'
+    '|Upgrade'
+    '|User-Agent)\S+:')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?
