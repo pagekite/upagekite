@@ -32,7 +32,7 @@ def csrf_input():
 
 
 # Decorator for making functions handle POSTed data
-def process_post(max_bytes=None, _async=False):
+def process_post(max_bytes=None, _async=False, csrf=True):
   def decorate(func):
     def post_wrapper(req_env):
       func_attrs = req_env['url_func_attrs']
@@ -44,7 +44,8 @@ def process_post(max_bytes=None, _async=False):
           if httpd.uPK.debug:
             httpd.uPK.debug('post_wrapper failed: %s(%s)' % (type(e), e))
           req_env['send_http_response'](code=500, msg='Server Error')
-      handle_big_request(handler, req_env, max_bytes=max_bytes, _async=True)
+      handle_big_request(handler, req_env,
+          max_bytes=max_bytes, _async=True, csrf=csrf)
     if _async:
       async def async_post_wrapper(req_env):
         return post_wrapper(req_env)
@@ -217,7 +218,7 @@ class ParseJSON(ParseNull):
         self.uPK.debug('%s parse failed: %s(%s)' % (self, type(e), e))
 
 
-def handle_big_request(handler, env, max_bytes=None, _async=False):
+def handle_big_request(handler, env, max_bytes=None, _async=False, csrf=True):
   uPK = env['httpd'].uPK
   frame = env['frame']
   req_env = env['req_env']
@@ -255,7 +256,7 @@ def handle_big_request(handler, env, max_bytes=None, _async=False):
     parser_cls = ParseNull
 
   def check_csrf():
-    if not req_env.get('_csrf_disabled'):
+    if csrf and not req_env.get('_csrf_disabled'):
       csrf_code = req_env.post_vars.get('upk_csrf', None)
       if not csrf_code or csrf_code['value'] not in CSRF_CODES:
         env['send_http_response'](code=403, msg='Invalid CSRF')
