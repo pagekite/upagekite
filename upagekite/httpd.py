@@ -325,9 +325,14 @@ class HTTPD:
       qs = ''
       if '?' in path:
         path, qs = path.split('?', 1)
-      headers = dict(
+
+      # Note: This is done in two passes (list, then dict), otherwise
+      #       Micropython may crap out and omit headers.
+      headers = [
         l[:128].split(': ', 1) for l in headers.splitlines()
-        if self.uPK.PARSE_HTTP_HEADERS.match(l))
+        if self.uPK.PARSE_HTTP_HEADERS.match(l)]
+      headers = dict(headers)
+
     except Exception as e:
       return await self._err(400, 'Invalid request', method, pathqs, conn, frame)
 
@@ -386,7 +391,8 @@ class HTTPD:
         headers['_path'] = path
         headers['_qs'] = self.qs_to_list(qs)
         req_env = {
-          'time': time, 'os': os, 'sys': sys, 'json': json, 'open': upk_open,
+          'time': time, 'os': os, 'sys': sys, 'json': json,
+          'open': upk_open, 'sys_open': open,
           'httpd': self, 'kite': kite, 'conn': conn, 'frame': frame,
           'send_http_response': first_reply,
           'postpone_action': postpone_action,

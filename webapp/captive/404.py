@@ -4,7 +4,7 @@
 import re
 
 # If the user typed in an IP address, keep it.
-hostname = app['uPK'].APPNAME
+hostname = app['uPK'].APPNAME + '.fe.pagekite.me'
 if re.match('^[0123456789\.]+$', http_headers.get('Host', '')):
   hostname = http_headers['Host']
 

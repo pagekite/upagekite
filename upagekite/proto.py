@@ -153,12 +153,14 @@ except ImportError:
 
 def upk_open(path, mode='r'):
   ose = ''
+  tried = []
   for root in APP_ROOT_PREFIXES:
     try:
+      tried.append(root + path)
       return open(root + path, mode)
     except OSError as e:
       ose = e
-  raise OSError(ose)
+  raise OSError(str(ose) + (' tried: %s' % ', '.join(tried)))
 
 
 class RejectedError(ValueError):
@@ -234,7 +236,7 @@ class uPageKiteDefaults:
     '|Orig'
     '|Sec-Web'
     '|Upgrade'
-    '|User-Agent)[^\s:]*:')
+    '|User-Agent)[^:]*:')
   FE_NAME = 'fe4_100.b5p.us'  # pagekite.net IPv4 pool for pagekite.py 1.0.0
   FE_PORT = 443
   DDNS_URL = ('http', 'up.pagekite.net',  # FIXME: https if enough RAM?

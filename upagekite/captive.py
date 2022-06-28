@@ -54,24 +54,23 @@ class DNSQuery:
 
 
 class CDNS:
-  def __init__(self, ip, port, uPK):
+  def __init__(self, ip, port):
     self.ip = bytes(map(int, ip.split(".")))
-    self.uPK = uPK
     self.fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.fd.setblocking(False)
     self.fd.bind(socket.getaddrinfo('0.0.0.0', port)[0][-1])
 
-  async def process_io(self):
+  async def process_io(self, uPK):
     try:
       data, addr = self.fd.recvfrom(4096)
       query = DNSQuery(data)
       if query.qdomain:
-        if self.uPK.info:
-          self.uPK.info('[dns] Responding to %s query from %s for %s'
+        if uPK.info:
+          uPK.info('[dns] Responding to %s query from %s for %s'
             % (query.qtype, addr[0], query.qdomain))
         self.fd.sendto(query.response(self.ip), addr)
-      elif self.uPK.debug:
-        self.uPK.debug('[dns] Unparsed query from %s: %s' % (addr[0], data))
+      elif uPK.debug:
+        uPK.debug('[dns] Unparsed query from %s: %s' % (addr[0], data))
 
     except Exception as e:
       print('Oops in CDNS: %s' % e)

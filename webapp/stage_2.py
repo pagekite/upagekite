@@ -8,16 +8,15 @@ import upagekite
 import upagekite.httpd
 import upagekite.websocket
 from upagekite.proto import upk_open, ticks_ms, asyncio, fuzzy_sleep_ms
-try:
-  from boot import settings
-except:
-  try:
-    from bootstrap import settings
-  except:
-    settings = {}
-
 
 print("=2= Stage two compiled, here we go!")
+
+try:
+    with open('/bootstrap-config.json', 'rb') as fd:
+        settings = json.loads(fd.read())
+        print("=2= Loaded settings from /bootstrap-config.json")
+except:
+    settings = {}
 
 
 if sys.platform == 'linux':
@@ -95,24 +94,26 @@ class MyProto(upagekite.uPageKiteDefaults):
 
 def captive_portal(env, httpd):
   try:
-    import network, time
+    import network, time, machine, ubinascii
+    uid = str(ubinascii.hexlify(machine.unique_id()), 'utf-8')
+    essid = '%s-%s' % (MyProto.APPNAME, uid)
     wlan = network.WLAN(network.STA_IF)
     if not wlan.isconnected():
-      print("=2= WiFi is down, bringing up captive portal.")
+      print("=2= WiFi is down, bringing up captive portal: %s" % essid)
       wlan.active(False)
       wlan = network.WLAN(network.AP_IF)
       wlan.active(False)
       while not wlan.active():
         wlan.active(True)
-        wlan.config(essid=MyProto.APPNAME)
+        wlan.config(essid=essid)
         time.sleep(1)
       wlan.ifconfig((CAPTIVE_IP, '255.255.255.0', CAPTIVE_IP, CAPTIVE_IP))
 
       print("=2= AP config: %s" % (wlan.ifconfig(),))
       import upagekite.captive
-      env['socks'].append(upagekite.captive.CDNS(CAPTIVE_IP, CDNS_PORT, MyProto))
+      env['socks'].append(upagekite.captive.CDNS(CAPTIVE_IP, CDNS_PORT))
       env['kites'] = []
-      httpd.webroot = 'bootstrap/captive'
+      httpd.webroot = '/bootstrap_live/captive'
     del network
     del time
   except Exception as e:
@@ -127,7 +128,7 @@ def get_upk():
 
   httpd = upagekite.httpd.HTTPD(
     settings.get('kite_name', MyProto.APPNAME),
-    'bootstrap/webroot',
+    '/bootstrap_live/webroot',
     {'app': env},
     MyProto)
 

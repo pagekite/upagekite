@@ -30,7 +30,7 @@ except ImportError:
 
 def load_settings():
   try:
-    with open('bootstrap-config.json', 'rb') as fd:
+    with open('/bootstrap-config.json', 'rb') as fd:
       return json.loads(fd.read())
   except:
     return {}
@@ -40,7 +40,7 @@ def setting(key, val=None):
   settings = load_settings()
   if val is not None:
     settings[key] = val
-    with open('bootstrap-config.json', 'wb') as fd:
+    with open('/bootstrap-config.json', 'wb') as fd:
       fd.write(json.dumps(settings))
   return settings[key]
 
@@ -56,6 +56,18 @@ def rm_rf(fn):
       os.remove(fn)
     except Exception as e:
       print('WARNING: rm(%s) failed: %s' % (fn, e))
+
+
+def mkdirexist(dn):
+  parts = dn.split('/')
+  for i in range(0, len(parts)):
+    try:
+      os.mkdir('/'.join(parts[:i+1]))
+    except OSError:
+      pass
+
+def make_parent(fn):
+  return mkdirexist(fn.rsplit('/', 1)[0])
 
 
 def http_get(proto, host, path, fd=None):
@@ -113,22 +125,13 @@ def bootstrap_2():
   return execfile('/bootstrap_live/stage_2.py')
 
 
-def bootstrap_1(settings):
+def bootstrap_1(settings, download=True):
   try:
     import machine
     import ubinascii
     HWID = str(ubinascii.hexlify(machine.unique_id()), 'latin-1')
   except:
     HWID = 'unknown'
-
-  def make_parent(fn):
-    parts = fn.split('/')
-    parts.pop(-1)
-    for i in range(0, len(parts)):
-      try:
-        os.mkdir('/'.join(parts[:i+1]))
-      except OSError:
-        pass
 
   def download_code(url):
     proto, host, path = url.replace('://', '/').split('/', 2)
@@ -195,16 +198,18 @@ def bootstrap_1(settings):
         time.sleep(1)
         wlan.active(True)
         wlan.connect(settings['ssid'], settings['key'])
+        print('=== Connecting to WiFi: %s' % settings['ssid'])
         for i in range(0, 60):
           if wlan.isconnected():
             break
           time.sleep(1)
-    except:
-      pass
+    except Exception as e:
+      print('!!! Failed to bring up WiFi: %s' % e)
 
   try:
     wifi_up()
-    download_code(settings['src'])
+    if download and 'src' in settings:
+      download_code(settings['src'])
   except Exception as e:
     print("!!! Network-based code update failed: %s" % e)
 
@@ -223,5 +228,7 @@ if __name__ == "__main__":
   del bootstrap_1
   del http_get
   del rm_rf
+  del make_parent
+  del mkdirexist
   gc.collect()
   bootstrap_2()

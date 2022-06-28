@@ -6,8 +6,11 @@ from upagekite.web import handle_big_request, form_encode
 def handler():
   post_data = http_headers['_post_data']
 
-  with open('/bootstrap-config.json', 'rb') as fd:
-    settings = json.loads(fd.read())
+  try:
+    with sys_open('/bootstrap-config.json', 'rb') as fd:
+      settings = json.loads(fd.read())
+  except OSError:
+    settings = {}
 
   wifi_ssid = post_data.val('wifi_ssid', settings.get('ssid', ''))
   wifi_key = post_data.val('wifi_pass', settings.get('key', ''))
@@ -43,7 +46,7 @@ def handler():
     settings['key'] = wifi_key
     settings['kite_name'] = kite_name
     settings['kite_secret'] = kite_secret
-    with open('/bootstrap-config.json', 'wb') as fd:
+    with sys_open('/bootstrap-config.json', 'wb') as fd:
       fd.write(json.dumps(settings))
     reboot = True
     status_message = """\
@@ -80,7 +83,7 @@ def handler():
     <input id=submit type=submit value="Save Settings and Reboot">
   </form>
 </body></html>""") % (
-    open('bootstrap/webroot/default.css').read(),  # Inline the CSS
+    open('/webroot/default.css').read(),  # Inline the CSS
     'none' if reboot else 'block',
     httpd.uPK.APPNAME,
     httpd.uPK.APPNAME,
@@ -95,4 +98,4 @@ def handler():
     time.sleep(2)
     machine.reset()
 
-handle_big_request(handler, globals())
+handle_big_request(handler, globals(), csrf=False)

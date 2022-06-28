@@ -35,6 +35,7 @@ _WEBSOCKETS = {}
 def websocket(ws_id=None, strict_origin=True, auth_check=None):
   def decorate(message_handler):
     async def url_handler(req_env):
+      uPK = req_env['httpd'].uPK
       if auth_check is not None:
           try:
               auth_check(req_env)
@@ -45,17 +46,18 @@ def websocket(ws_id=None, strict_origin=True, auth_check=None):
       if ((hdrs.get('Upgrade', '').lower() != 'websocket')
           or (not hdrs.get('Sec-WebSocket-Key'))
           or (hdrs.get('Sec-WebSocket-Protocol'))  # Unsupported!
-          or (hdrs.get('Sec-WebSocket-Version', '') not in ('13', ))):
+          or (hdrs.get('Sec-WebSocket-Version', '13') not in ('13', ))):
         rv = None
         if 'Upgrade' not in hdrs:
           rv = await message_handler(None, None, None, None, websocket=False)
+        elif uPK.debug:
+          uPK.debug('Invalid Websocket request: %s' % (hdrs,))
         return rv or {'code': 400, 'msg': 'Invalid Request'}
 
       if strict_origin and (not hdrs.get('Host')
           or (('://'+hdrs.get('Host', '')) not in hdrs.get('Origin', ''))):
         return {'code': 403, 'msg': 'Forbidden'}
 
-      uPK = req_env['httpd'].uPK
       live_conns = sum([len(ws.streams) for ws in _WEBSOCKETS.values()])
       if live_conns >= uPK.WEBSOCKET_MAX_CONNS:
         return {'code': 503, 'msg': 'Too Many Clients'}
