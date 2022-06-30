@@ -4,31 +4,31 @@ This code makes it very easy to create static web sites or simple web
 services in MicroPython, and automatically punch through firewalls and
 NAT to make the server reachable from the wider Internet.
 
-This is a minimal HTTP server and PageKite implementation, written for
-use with MicroPython on the ESP32. It is also tested on Ubuntu/Python
-3.7 and Ubuntu's MicroPython snap. You will need access to a PageKite
-relay, such as those provided by [pagekite.net](https://pagekite.net/).
+This is a minimal HTTP server, web micro-framework and PageKite
+implementation, written for use with MicroPython on the ESP32. It is also
+tested on Ubuntu/Python 3.7 and Ubuntu's MicroPython snap. You will need
+access to a PageKite relay, such as those provided by
+[pagekite.net](https://pagekite.net/).
 
 
 **WARNING:** This code does not magically make the ESP32 suitable for
 hosting a high-volume webapp. Not does it "solve" security. Be careful!
 
-**WARNING:** This is ALPHA QUALITY CODE. [Get in
-touch](https://pagekite.net/support/chat/) and have a chat before using
-it for anything important! Here be dragons!
-
 
 ## Hacking uHowTo
 
-1. Clone this repo: `git clone https://github.com/pagekite/upagekite/`
+1. Clone upagekite: `git clone https://github.com/pagekite/upagekite/`
 2. Follow the **Bootstrapping Development** guide below
-3. Make your changes to [stage_2.py](webapp/stage_2.py)
-4. Create your webapp (see [webapp/webroot](webapp/webroot/))
-5. Add new code files to "mirror" in [bootstrap.json](bootstrap.json)
-6. Iterate!
+3. Make changes to [stage_2.py](webapp/stage_2.py),
+   the [webapp](webapp/webroot/),
+   or [upagekite](upagekite/) itself.
+4. Iterate!
 
 Consult [webapp/README.md](webapp/README.md) for guidance on how to
 develop simple web apps or APIs using this framework.
+
+Alternately, you may be better off exploring
+[the Tutorial](https://github.com/pagekite/upagekite-tutorial/`).
 
 
 ## Project Status
@@ -38,9 +38,9 @@ develop simple web apps or APIs using this framework.
 * Exposing a hello-world webapp via. [pagekite.net](https://pagekite.net/)
 * Network-based bootstrapping, load & run code from the web
 * Tested platforms and pythons:
-   * MicroPython 1.13 on an ESP32-WROOM-32 DevKitC board
-   * MicroPython 1.13 on Ubuntu Linux
-   * Python 3.7.5 on Ubuntu Linux
+   * MicroPython 1.14 on an ESP32-WROOM-32 DevKitC board
+   * MicroPython 1.14 on Ubuntu Linux
+   * Python 3.8.10 on Ubuntu Linux
 * Adaptive relay selection (ESP32 relies on DNS hints from web)
 * Proxying to an external server (e2e TLS, SSH, ...)
 
@@ -54,175 +54,102 @@ details and a more complete list.
 
 ## Bootstrapping Development
 
-Since you are likely to want to iterate on your Python code, a simple
-web-based bootstrapping/updating script is included to make life eaiser.
-
-The way it works, is:
-
-1. [bootstrap.py](scripts/bootstrap.py) runs on the ESP32, on startup
-2. The script downloads [bootstrap.json](bootstrap.json) from an HTTP server
-3. The script downloads all files listed in the "mirror" section,
-   saving them to a directory named `bootstrap` on the ESP32.
-4. The script runs whatever got installed as `bootstrap/stage_2.py`
-
-(Whether this is (or isn't) a sane way to keep devices in the field up
-to date, is left as an exercise for the reader... probably not without
-some form of digital signatures! But it's great for development.)
+**Note:** Before you start, you may want to sign up for a
+[pagekite.net](https://pagekite.net/) account.
 
 
-### Bootstrap web server: python3 web server
+### Local Python 3.x development
 
-You can use Python's built-in HTTP server to serve code updates to your
-ESP32.
+Take a look at the [hello.py](scripts/hello.py) sample script.
 
-The following commands should be run from within your uPageKite source
-folder (the same folder as contains this README.md).
+You can probably just run it:
 
-    # Find your machine's current IP address
-    ip addr |grep global
+    cd /path/to/upagekite
+    python3 scripts/hello.py myname.pagekite.me mysecret
 
-    # Or...
-    ifconfig |grep netmask
-
-    # Launch the Python server
-    python3 -m http.server 8080
-
-In the ESP32 setup below, you will need to set `code_src` to something
-like: `http://192.168.1.2:8080/bootstrap.json`
-
-If for some reason your ESP32 is on a different network, or if your IP
-address changes frequently enough to be an annoyance, you may prefer to
-serve the code over `pagekite.py` instead, as described below.
-
-Otherwise, skip to the ESP32 or localhost setup sections below.
+Since the sample app is written with the ESP32 in mind, some things may
+not work. You can port over code from [webapp/stage_2.py](stage_2.py) into
+[hello.py](scripts/hello.py) for fun and profit.
 
 
-### Bootstrap web server using pagekite.py
+### Running on a live ESP32
 
-You can also use pagekite.py's built-in HTTP server to serve code
-updates to your ESP32.
+There are many ways to upload code to your ESP32. Here we will describe
+only one; using `picocom` to manage the serial link, and
+`upagekite.esp32_install` to drive it.
 
-The following commands should be run from within your uPageKite source
-folder (the same folder as contains this README.md).
+**1. Verify that Linux sees your ESP32 as a serial device**
 
-1. Install pagekite.py, see <https://pagekite.net/downloads>
-2. Sign up for a [pagekite.net](https://pagekite.net/) account, replace
-   USER below with your main kite name.
-3. Expose the code folder as https://code-USER.pagekite.me/:
+    $ dmesg |grep -i usb |tail -5
+    [...] usb 3-1: new full-speed USB device number 57 using xhci_hcd
+    [...] usb 3-1: New USB device found, idVendor=1a86, idProduct=7523, ...
+    [...] usb 3-1: New USB device strings: Mfr=0, Product=2, SerialNumber=0
+    [...] usb 3-1: Product: USB2.0-Ser!
+    [...] usb 3-1: ch341-uart converter now attached to ttyUSB0
 
-```
-pagekite.py . code-USER.pagekite.me
-```
+In this example, the ESP32 is connected to `/dev/ttyUSB0`.
 
-Once you have navigated the sign-up, you can configure your bootstrap
-(localhost or ESP32) with `code_src` set to:
-`https://code-USER.pagekite.me/bootstrap.json`
+**2. Make sure you can talk to Micropython**
 
-Now, proceed to the ESP32 or localhost setup sections below.
+If you haven't already flashed your
+[ESP32 with Micropython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
 
+    $ picocom -b115200 --lower-dtr --lower-rts /dev/ttyUSB0
+    ...
+    MicroPython v1.14-122-g9fef1c0bd-dirty [...] with ESP32
+    Type "help()" for more information.
+    >>>
 
-### Bootstrap setup on the ESP32
+(You may want to experiment with omit the `--lower-dtr` and `--lower-rts`
+arguments above; some boards need them, some don't. Skipping them is
+preferable, since they reboot the board every time, but I haven't found
+any other reliable way to connect to the ESP32-CAM.)
+    
+**3. Configure and upload code to the device**
 
-After setting up your bootstrap web server (see above), you can follow
-the next steps to configure your ESP32 for uPageKite development. All
-code-blocks run in the MicroPython REPL:
+If you know your WiFi details and PageKite credentials, you may want to
+set some enviroment variables first:
 
-1. [Install MicroPython on your ESP32](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html).
-   The 2020-09-02 v1.13 build is known to work. Connect to the serial
-   console and...
+    $ export UPK_WIFI_SSID="yourwifi"
+    $ export UPK_WIFI_KEY="wifiKey"
+    $ export UPK_KITE_NAME="yourkitename.pagekite.me"
+    $ export UPK_KITE_SECRET="verySecretSecret"
 
-2. Set these variables, they will be used in the copy-pastable
-   code snippets below:
+(If you skip the above step, the default sample app should enable a captive
+portal on the ESP32 which will let you input settings interactively, which
+can be fun.)
 
-```
-wifi_ssid = "YOUR-SSID"
-wifi_key = "YOUR-WIFI-PASSWORD"
+    $ python3 -m upagekite.esp32_install \
+       |picocom -b115200 --lower-dtr --lower-rts /dev/ttyUSB0
 
-code_src = "https://yoursite.com/path/to/bootstrap.json"
+    [... lots of output omitted ...]
 
-kite_name = "DEVICE-USER.pagekite.me"
-kite_secret = "SECRET"
-```
+Without any arguments, this will upload all of `upagekite` and all of
+the sample app to the board's flash, in a folder named `bootstrap_live`.
 
-3. Enable WiFi:
+The app should then run!
 
-```
-import network
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(wifi_ssid, wifi_key)
-```
-
-4. Create a file name `bootstrap-config.json` with your network
-   credentials and the URL you want to download code from:
-
-```
-import json
-with open('bootstrap-config.json', 'w') as fd:
-  fd.write(json.dumps(
-    {"ssid": wifi_ssid, "key": wifi_key, "src": code_src,
-     "kite_name": kite_name, "kite_secret": kite_secret}))
-```
-
-5. Configure and enable the web REPL:
-
-```
-import webrepl_setup
-```
-
-6. [Connect to the Web REPL using a browser](http://micropython.org/webrepl/),
-   and upload the file `scripts/bootstrap.py` to the device.
-
-7. Reset the device, to guarantee a clean slate...
-
-8. Run the bootstrap script!
-
-```
-execfile('bootstrap.py')
-```
-
-That should connect to your wifi and loads the second-stage loader,
-running uPageKite and your code. If it works you can press CTRL+C to
-return to the Python REPL and proceed...
-
-9. Replace the MicroPython boot script with `bootstrap.py`:
-
-```
-os.remove('boot.py')
-os.rename('bootstrap.py', 'boot.py')
-```
-
-From this point on, you can simply edit the code on your computer and
-then reset the device, it will fetch the latest updates on boot.
+By default, the install helper scans the `upagekite/` and `webapp/`
+folders for changed files and uploads anything new, configurs WiFi and
+pagekite credentials and launches the app. But it can do other things
+too, see `pydoc3 upagekite.esp32_install` for details. 
 
 
-### Bootstrap setup on localhost
+**4. Commence hacking!**
 
-If you want to work on your code locally, without an external device,
-uPageKite and the bootstrapping process will run under Python3 or
-MicroPython.
+At this point, you will hopefully have made contact with your ESP32 and
+launched a live webapp.
 
-1. Edit the bundled [bootstrap-config.json](bootstrap-config.json) file,
-   adding `kite_name` and `kite_secret` fields matching your PageKite
-   credentials. The contents should look something like this:
+You can either hack on the sample app until it does what you want, or
+explore [the Tutorial](https://github.com/pagekite/upagekite-tutorial/`)
+for a more structured approach.
 
-```
-{
-  "kite_name": "device-USER.pagekite.me",
-  "kite_secret": "SECRET",
-  "src": "http://127.0.0.1:8080/bootstrap.json"
-}
-```
-
-2. Run the bootstrap script:
-
-```
-# With Python3
-python3 scripts/bootstrap.py
-
-# Or MicroPython
-micropython scripts/bootstrap.py
-```
+Note that uploading Python code to the flash and compiling it on the
+chip as described above, is quite inefficient use of precious RAM.  Once
+you have an idea what you want to develop, you will probably want to
+build your own custom Micropython firmware and "freeze" your Python code
+into the binary. This allows Micropython to run the bytecode directly
+from FLASH and conserve RAM for use by your application.
 
 
 ## Copyright and License
