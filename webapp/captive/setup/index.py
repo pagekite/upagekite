@@ -3,6 +3,7 @@
 
 from upagekite.web import handle_big_request, form_encode
 
+
 def handler():
   post_data = http_headers['_post_data']
 
@@ -17,10 +18,24 @@ def handler():
   kite_name = post_data.val('kite_name', settings.get('kite_name', ''))
   kite_secret = post_data.val('kite_secret', settings.get('kite_secret', ''))
 
+  available = []
+  wifi_aps = app.get('wifi_scan', [])
+  wifi_aps.sort(key=lambda w: -w[3])
+  for wifi_ap in wifi_aps[:10]:
+    wifi_ap = str(wifi_ap[0], 'utf-8')
+    available.append(("""\
+<li><a href=# onclick='document.getElementById("wifi_ssid").value="%s";'>%s</a>
+""") % (wifi_ap, wifi_ap))
+  available = ''.join(available)
+  if available:
+    available = (
+      '<div class=right><h3>WiFi networks</h3><ul>%s</ul></div>'
+      ) % available
+
   wifi_config = ("""\
 <table><tr>
   <th>Network</th>
-  <td><input name=wifi_ssid type=text placeholder='WiFi Network Name' value=%s></td>
+  <td><input id=wifi_ssid name=wifi_ssid type=text placeholder='WiFi Network Name' value=%s></td>
 </tr><tr>
   <th>Password</th>
   <td><input name=wifi_pass type=text placeholder='WiFi Password' value=%s></td>
@@ -76,6 +91,7 @@ def handler():
   <h1>Configure Your %s</h1>
   %s
   <form method=post enctype="multipart/form-data">
+    %s
     <h2>Wi-Fi</h2>
     <div id=wifi>%s</div>
     <h2>PageKite</h2>
@@ -89,6 +105,7 @@ def handler():
     httpd.uPK.APPNAME,
     httpd.uPK.APPNAME,
     status_message,
+    available,
     wifi_config,
     pagekite_config))
 

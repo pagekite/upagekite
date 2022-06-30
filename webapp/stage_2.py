@@ -100,13 +100,19 @@ def captive_portal(env, httpd):
     wlan = network.WLAN(network.STA_IF)
     if not wlan.isconnected():
       print("=2= WiFi is down, bringing up captive portal: %s" % essid)
+
+      while not wlan.active():
+        wlan.active(True)
+        env['wifi_scan'] = wlan.scan()
+        time.sleep(0.25)
       wlan.active(False)
+
       wlan = network.WLAN(network.AP_IF)
       wlan.active(False)
       while not wlan.active():
         wlan.active(True)
         wlan.config(essid=essid)
-        time.sleep(1)
+        time.sleep(0.25)
       wlan.ifconfig((CAPTIVE_IP, '255.255.255.0', CAPTIVE_IP, CAPTIVE_IP))
 
       print("=2= AP config: %s" % (wlan.ifconfig(),))

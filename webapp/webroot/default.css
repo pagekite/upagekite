@@ -2,3 +2,8 @@ body {
   margin: 0;
   padding: 20 25% 20 25%;
 }
+.right {
+  float: right;
+  display: inline-block;
+  max-width: 30%;
+}
