@@ -174,7 +174,7 @@ class Websocket(object):
       if (only is None) or only(wss):
         try:
           await wss.send(msg, opcode)
-        except (KeyError, OSError):
+        except (KeyError, OSError, AttributeError):
           dead.append(k)
     for k in dead:
       del self.streams[k]
