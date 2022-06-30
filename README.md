@@ -101,10 +101,10 @@ In this example, the ESP32 is connected to `/dev/ttyUSB0`.
 If nothing shows up, you probably need another cable. Or another ESP32.
 
 
-**2. Make sure you can talk to Micropython**
+**2. Make sure you can talk to MicroPython**
 
 If you haven't already flashed your
-[ESP32 with Micropython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
+[ESP32 with MicroPython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
 now is the time to do so!
 
 Then `apt install picocom` and connect to your ESP32:
@@ -175,9 +175,9 @@ There simply isn't enough RAM to compile all the code, manage the camera
 and maintain an encrypted connection, all at once!
 
 So once you have an idea what you want to develop, you will probably
-want to build your own custom Micropython firmware and "freeze" your
+want to build your own custom MicroPython firmware and "freeze" your
 Python code (along with upagekite and any other dependencies) into the
-binary. This allows Micropython to run the bytecode directly from flash
+binary. This allows MicroPython to run the bytecode directly from flash
 and conserve RAM for use by your application.
 
 This also unlocks the ability to use the ESP32's "native" OTA updates to
