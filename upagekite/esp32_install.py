@@ -71,7 +71,7 @@ def _send_escaped(lines):
     count = 0
     for line in lines:
         count += 1
-        _s(0.001 + len(line) / 2500.0,
+        _s(0.001 + len(line) / 10000.0,
             line.replace('\\', '\\\\').replace('"', '\\"'), eol=b'\n')
     return count
 
@@ -136,7 +136,8 @@ def emit_script(argv):
 
     if '--clean' in argv:
         _s(0.1, 'rm_rf("bootstrap_live")')
-        os.remove(CHANGE_MARKER)
+        if os.path.exists(CHANGE_MARKER):
+            os.remove(CHANGE_MARKER)
     _s(0.1, 'mkdirexist("bootstrap_live")')
     _s(2)
 
