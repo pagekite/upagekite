@@ -10,12 +10,16 @@ try:
 except:
   pass
 
-mhz = 'unknown'
 try:
   import machine
   mhz = '%.2fMhz' % (float(machine.freq()) / 1000000.0,)
 except:
-  pass
+  mhz = 'unknown'
+
+try:
+  import camera
+except:
+  camera = None
 
 
 def say_something(what, foobar='okay'):
@@ -40,8 +44,9 @@ send_http_response(
   <title>upagekite: A Pythonic Index</title>
 </head><body>
   <h1>Hello world!</h1>
+  %s
   <p>This is <b>%s</b> at %s, you are %s</p>
-  <p>I have a %s CPU and %s bytes of flash, %s bytes of free RAM.</p>
+  <p>I have a %s CPU and %s bytes of flash, %s bytes of free RAM%s.</p>
   <p>
     See also:
     <a href="/hello/">hello</a>,
@@ -58,12 +63,14 @@ send_http_response(
 </body></html>
 """) % (
   open('/webroot/default.css').read(),  # Inline the CSS
+  '<img class=right src="/camera.jpg">' if camera else '',
   kite.name,
   time.time(),
   frame.remote_ip,
   mhz,
   flash_size,
   gc.mem_free() if hasattr(gc, 'mem_free') else 'unknown',
+  ', and maybe a camera' if camera else '',
   ('%s' % http_headers).replace('<', '&lt;'),
   (', '.join(dir())).replace('<', '&lt;'),
   app.get('settings', {}).get('ssid', 'unknown')))

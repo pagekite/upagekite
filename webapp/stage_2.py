@@ -18,6 +18,11 @@ try:
 except:
     settings = {}
 
+try:
+    import camera
+except:
+    camera = None
+
 
 if sys.platform == 'linux':
   HTTPD_PORT = 18080
@@ -82,9 +87,33 @@ def ws_log(msg):
   return upagekite.uPageKiteDefaults.log(msg)
 
 
+# This demonstrates how to regularly take pictures
+async def camera_loop():
+  if camera:
+    try:
+      camera.init(0, format=camera.JPEG)
+      camera.framesize(camera.FRAME_VGA)
+    except Exception as e:
+      ws_log('[cam] Camera init failed: %s' % e)
+      return
+
+    while await fuzzy_sleep_ms(45000):
+      try:
+        buf = camera.capture()
+        with open('/bootstrap_live/webroot/camera.jpg', 'wb') as fd:
+          fd.write(buf)
+          ws_log('[cam] Wrote new image to camera.jpg')
+        gc.collect()
+      except Exception as e:
+        ws_log('[cam] Failed to capture new image: %s' % e)
+
+    camera.deinit()
+
+
 class MyProto(upagekite.uPageKiteDefaults):
   # Disable watchdog
   WATCHDOG_TIMEOUT = None
+  WITH_SSL = (camera is None)  # Not enough RAM for both!
 
   #trace = upagekite.uPageKiteDefaults.log  # Do not use ws_log!
   debug = ws_log
@@ -168,5 +197,6 @@ if __name__ == "__main__":
   del get_upk
   del captive_portal
   asyncio.get_event_loop().create_task(ws_logger())
+  asyncio.get_event_loop().create_task(camera_loop())
   gc.collect()
   upk.run()

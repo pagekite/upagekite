@@ -1,8 +1,11 @@
 <html><head>
   <title>Websocket test</title>
+  <link href="/default.css" media=all rel=stylesheet type="text/css" />
+  <link rel="icon" href="data:;base64,=">
   <script type="text/javascript" nonce="2021">
     var host = document.location.host;
     var wsp = (document.location.protocol == 'http:') ? 'ws' : 'wss';
+    var counter = 0;
     const socket = new WebSocket(wsp + '://' + host + '/websocket');
     socket.onopen = function () {
       setInterval(function() {
@@ -12,6 +15,10 @@
     socket.onmessage = function(event) {
       var container = document.getElementById('incoming');
       container.innerHTML += '<pre>'+event.data+'</pre>';
+      if (event.data.indexOf('Wrote new image') != -1) {
+        document.getElementById('pic').innerHTML = '<img class="right" src="/camera.jpg?c='+counter+'">';
+        counter += 1;
+      }
     };
     setInterval(function() {
       document.getElementById('incoming').innerHTML = '<p>Cleared</p>';
@@ -19,5 +26,6 @@
   </script>
 </head><body>
   <h1>Hello Websocket World</h1>
+  <div id="pic"></div>
   <div id="incoming"></div>
 </body></html>
