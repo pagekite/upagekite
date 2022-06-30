@@ -78,6 +78,7 @@ There are many ways to upload code to your ESP32. Here we will describe
 only one; using `picocom` to manage the serial link, and
 `upagekite.esp32_install` to drive it.
 
+
 **1. Verify that Linux sees your ESP32 as a serial device**
 
     $ dmesg |grep -i usb |tail -5
@@ -89,10 +90,13 @@ only one; using `picocom` to manage the serial link, and
 
 In this example, the ESP32 is connected to `/dev/ttyUSB0`.
 
+
 **2. Make sure you can talk to Micropython**
 
 If you haven't already flashed your
 [ESP32 with Micropython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
+now is the time to do so! Then `apt install picocom` and connect to your
+ESP32:
 
     $ picocom -b115200 --lower-dtr --lower-rts /dev/ttyUSB0
     ...
@@ -100,11 +104,13 @@ If you haven't already flashed your
     Type "help()" for more information.
     >>>
 
-(You may want to experiment with omit the `--lower-dtr` and `--lower-rts`
+You may want to experiment with omit the `--lower-dtr` and `--lower-rts`
 arguments above; some boards need them, some don't. Skipping them is
 preferable, since they reboot the board every time, but I haven't found
-any other reliable way to connect to the ESP32-CAM.)
+any other reliable way to connect to the ESP32-CAM. They are not needed
+with the DevKit-C boards.
     
+
 **3. Configure and upload code to the device**
 
 If you know your WiFi details and PageKite credentials, you may want to
@@ -115,9 +121,11 @@ set some enviroment variables first:
     $ export UPK_KITE_NAME="yourkitename.pagekite.me"
     $ export UPK_KITE_SECRET="verySecretSecret"
 
-(If you skip the above step, the default sample app should enable a captive
+If you skip the above step, the default sample app should enable a captive
 portal on the ESP32 which will let you input settings interactively, which
-can be fun.)
+can be fun.
+
+Next, run the install tool:
 
     $ python3 -m upagekite.esp32_install \
        |picocom -b115200 --lower-dtr --lower-rts /dev/ttyUSB0
@@ -129,9 +137,9 @@ the sample app to the board's flash, in a folder named `bootstrap_live`.
 
 The app should then run!
 
-By default, the install helper scans the `upagekite/` and `webapp/`
-folders for changed files and uploads anything new, configurs WiFi and
-pagekite credentials and launches the app. But it can do other things
+By default, the install tool scans the `upagekite/` and `webapp/`
+folders for changed files and uploads anything new, configures WiFi and
+PageKite credentials and launches the app. But it can do other things
 too, see `pydoc3 upagekite.esp32_install` for details. 
 
 
@@ -144,12 +152,25 @@ You can either hack on the sample app until it does what you want, or
 explore [the Tutorial](https://github.com/pagekite/upagekite-tutorial/`)
 for a more structured approach.
 
-Note that uploading Python code to the flash and compiling it on the
-chip as described above, is quite inefficient use of precious RAM.  Once
-you have an idea what you want to develop, you will probably want to
-build your own custom Micropython firmware and "freeze" your Python code
-into the binary. This allows Micropython to run the bytecode directly
-from FLASH and conserve RAM for use by your application.
+
+## A Note About Resource Constraints
+
+Uploading Python code to flash and compiling it on the chip as described
+above, is quite inefficient use of precious RAM.
+
+Some features simply cannot work: for example, the sample webapp
+disables TLS connections to the PageKite relays if a camera is detected.
+There simply isn't enough RAM to compile all the code, manage the camera
+and maintain an encrypted connection, all at once!
+
+So once you have an idea what you want to develop, you will probably
+want to build your own custom Micropython firmware and "freeze" your
+Python code (along with upagekite and any other dependencies) into the
+binary. This allows Micropython to run the bytecode directly from flash
+and conserve RAM for use by your application.
+
+This also unlocks the ability to use the ESP32's "native" OTA updates to
+upgrade your code on running devices.
 
 
 ## Copyright and License
