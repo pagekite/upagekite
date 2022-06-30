@@ -435,10 +435,12 @@ class uPageKite:
     if IS_MICROPYTHON:
       await self.uPK.check_fe_hint_url()
 
+    preferred = [p for p in preferred]
     for kite in self.kites:
       for a in await self.uPK.get_kite_addrinfo(kite):
         if a[-1] not in relays and len(relays) < 10:
           relays.append(a[-1])
+          preferred.append(a[-1])
 
     if self.kites:
       for a in await self.uPK.get_relays_addrinfo():
@@ -456,7 +458,7 @@ class uPageKite:
     for i, relay_addr in enumerate(relays):
       if self.reconfig_flag:
         return []
-      bias = 0.9 if (not i or relay_addr in preferred) else 1.0
+      bias = 0.75 if (not i or relay_addr in preferred) else 1.0
       pings[i] = await self.uPK.ping_relay(relay_addr, bias)
 
     relays = list(zip(pings, relays))
