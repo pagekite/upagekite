@@ -54,8 +54,14 @@ details and a more complete list.
 
 ## Bootstrapping Development
 
-**Note:** Before you start, you may want to sign up for a
-[pagekite.net](https://pagekite.net/) account.
+### Before you start
+
+You will probably need:
+
+   * An ESP32 module
+   * A proper USB cable
+   * Credentials for your local WiFi
+   * A [pagekite.net](https://pagekite.net/) account
 
 
 ### Local Python 3.x development
@@ -81,6 +87,8 @@ only one; using `picocom` to manage the serial link, and
 
 **1. Verify that Linux sees your ESP32 as a serial device**
 
+Plug the ESP32 into your USB port, and then run `dmesg`:
+
     $ dmesg |grep -i usb |tail -5
     [...] usb 3-1: new full-speed USB device number 57 using xhci_hcd
     [...] usb 3-1: New USB device found, idVendor=1a86, idProduct=7523, ...
@@ -90,22 +98,25 @@ only one; using `picocom` to manage the serial link, and
 
 In this example, the ESP32 is connected to `/dev/ttyUSB0`.
 
+If nothing shows up, you probably need another cable. Or another ESP32.
+
 
 **2. Make sure you can talk to Micropython**
 
 If you haven't already flashed your
 [ESP32 with Micropython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
-now is the time to do so! Then `apt install picocom` and connect to your
-ESP32:
+now is the time to do so!
+
+Then `apt install picocom` and connect to your ESP32:
 
     $ picocom -b115200 --lower-dtr --lower-rts /dev/ttyUSB0
     ...
-    MicroPython v1.14-122-g9fef1c0bd-dirty [...] with ESP32
+    MicroPython v1.14 [...] with ESP32
     Type "help()" for more information.
     >>>
 
-You may want to experiment with omit the `--lower-dtr` and `--lower-rts`
-arguments above; some boards need them, some don't. Skipping them is
+You may want to try omitting the `--lower-dtr` and `--lower-rts`
+arguments above; some boards need them, some don't. Omitting them is
 preferable, since they reboot the board every time, but I haven't found
 any other reliable way to connect to the ESP32-CAM. They are not needed
 with the DevKit-C boards.
