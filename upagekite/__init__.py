@@ -33,6 +33,12 @@ def _ntp_settime(uPK):
         uPK.error('Failed to set NTP time: %s' % e)
 
 
+def _fileno(obj):
+    if hasattr(obj, 'fileno'):
+        return obj.fileno()
+    return id(obj)
+
+
 class LocalHTTPKite(Kite):
   def __init__(self, listen_on, name, secret, handler):
     Kite.__init__(self, name, secret, 'http', handler)
@@ -169,7 +175,7 @@ class LocalHTTPKite(Kite):
       return True
 
     try:
-      sid = '%s-%x' % (sock.fileno(), ticks_ms())
+      sid = '%s-%x' % (_fileno(sock), ticks_ms())
       if hasattr(sock, 'makefile'):
         client = sock.makefile('rwb')
       else:
@@ -251,7 +257,7 @@ class uPageKiteConn:
     return self
 
   def __str__(self):
-    return "<uPageKiteConn(%s)=%s>" % (self.ip, self.fd.fileno())
+    return "<uPageKiteConn(%s)=%s>" % (self.ip, _fileno(self.fd))
 
   def sync_reply(self, frame, data=None, eof=True):
     uPK = self.pk.uPK
@@ -301,7 +307,7 @@ class uPageKiteConn:
       now = int(time.time())
       self.last_data_ts = now
       if frame:
-        frame = Frame(uPK, frame, cid=('%d-' % self.fd.fileno()))
+        frame = Frame(uPK, frame, cid=('%d-' % id(self.fd)))
 
         if frame.ping:
           async with self.lock:
@@ -347,10 +353,10 @@ class uPageKiteConnPool:
   def __init__(self, conns, pk):
     self.pk = pk
 
-    self.conns = dict((c.fd.fileno(), c) for c in conns)
+    self.conns = dict((_fileno(c.fd), c) for c in conns)
     for so in pk.socks:
       if so.fd is not None:
-        self.conns[so.fd.fileno()] = so
+        self.conns[_fileno(so.fd)] = so
 
     self.poll = select.poll()
     for fno in self.conns:
@@ -373,7 +379,7 @@ class uPageKiteConnPool:
       self.pk.uPK.trace('Entering poll(%d)' % timeout_ms)
 
     for (obj, event) in await self.async_poll(timeout_ms):
-      conn = self.conns[obj if (type(obj) == int) else obj.fileno()]
+      conn = self.conns[obj if (type(obj) == int) else _fileno(obj)]
       if self.pk.uPK.trace:
         self.pk.uPK.trace(
           'process_io(%s) o=%s ev=0x%x' % (conn, obj, event))
