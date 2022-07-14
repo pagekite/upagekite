@@ -12,7 +12,7 @@ those provided by [pagekite.net](https://pagekite.net/).
 
 
 **WARNING:** This code does not magically make the ESP32 or Pico W suitable
-for hosting a high-volume webapp. Not does it "solve" security. Be careful!
+for hosting a high-volume webapp. Nor does it "solve" security. Be careful!
 
 
 ## Hacking uHowTo
@@ -72,8 +72,8 @@ Take a look at the [hello.py](scripts/hello.py) sample script.
 
 You can probably just run it:
 
-    cd /path/to/upagekite
-    python3 scripts/hello.py myname.pagekite.me mysecret
+    $ cd /path/to/upagekite
+    $ python3 scripts/hello.py myname.pagekite.me mysecret
 
 Since the sample app is written with the ESP32 in mind, some things may
 not work. You can port over code from [webapp/stage_2.py](stage_2.py) into
@@ -181,8 +181,8 @@ to deploy code to the chip like so:
 
     $ python3 -m upagekite.esp32_install --nopk |picocom /dev/ttyACM0
 
-(Consult the more complete ESP32 instructions above for hints about
-environment variables and options.
+Consult the more complete ESP32 instructions above, for hints about
+environment variables and other options.
 
 
 ## A Note About Resource Constraints
