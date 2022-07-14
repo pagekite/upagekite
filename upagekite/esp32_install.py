@@ -1,8 +1,8 @@
 """\
 Emits a script to reconfigure and upload code to Micropython running on
-an ESP32, over the serial link. The output of this script is timed and
-is meant to be piped into a picocom instance, which handles connecting
-to the ESP32's Micropython serial console.
+an ESP32 (or Raspberry Pi Pico W), over the serial link. The output of this
+script is timed and is meant to be piped into a picocom instance, which
+handles connecting to the Micropython serial console.
 
 Usage:
     python3 -m upagekite.esp32_install [options] \\
@@ -24,6 +24,8 @@ Options:
 
     --onboot     Make the app start automatically on boot
     --launch     Launch the app when the script completes
+
+    --nopk       Equivalent to: --app --changed --config --launch
 
 If no options are provided, runs: "--all --changed --config --launch"
 
@@ -111,6 +113,9 @@ def _dir_to_upload_list(source_base, target_base):
 def emit_script(argv):
     if not argv:
         argv = ['--all', '--changed', '--config', '--launch']
+    if '--nopk' in argv:
+        argv.remove('--nopk')
+        argv.extend(['--app', '--changed', '--config', '--launch'])
 
     def changed(fn):
         try:

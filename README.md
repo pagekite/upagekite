@@ -1,18 +1,18 @@
-# upagekite: MicroPython/ESP32 PageKite web server
+# upagekite: ESP32 / Pico W + MicroPython public web server
 
 This code makes it very easy to create static web sites or simple web
 services in MicroPython, and automatically punch through firewalls and
 NAT to make the server reachable from the wider Internet.
 
 This is a minimal HTTP server, web micro-framework and PageKite
-implementation, written for use with MicroPython on the ESP32. It is also
-tested on Ubuntu/Python 3.7 and Ubuntu's MicroPython snap. You will need
-access to a PageKite relay, such as those provided by
-[pagekite.net](https://pagekite.net/).
+implementation, written for use with MicroPython on the ESP32 or the
+Raspberry Pi Pico W. It is also tested on Ubuntu/Python 3.7 and Ubuntu's
+MicroPython snap. You will need access to a PageKite relay, such as
+those provided by [pagekite.net](https://pagekite.net/).
 
 
-**WARNING:** This code does not magically make the ESP32 suitable for
-hosting a high-volume webapp. Not does it "solve" security. Be careful!
+**WARNING:** This code does not magically make the ESP32 or Pico W suitable
+for hosting a high-volume webapp. Not does it "solve" security. Be careful!
 
 
 ## Hacking uHowTo
@@ -38,10 +38,12 @@ Alternately, you may be better off exploring
 * Exposing a hello-world webapp via. [pagekite.net](https://pagekite.net/)
 * Network-based bootstrapping, load & run code from the web
 * Tested platforms and pythons:
-   * MicroPython 1.14 on an ESP32-WROOM-32 DevKitC board
+   * MicroPython 1.19+ on the Raspberry Pi Pico W
+   * MicroPython 1.19 on an ESP32-CAM module
+   * MicroPython 1.14-1.19 on an ESP32-WROOM-32 DevKitC board
    * MicroPython 1.14 on Ubuntu Linux
    * Python 3.8.10 on Ubuntu Linux
-* Adaptive relay selection (ESP32 relies on DNS hints from web)
+* Adaptive relay selection (ESP32 and Pico W rely on DNS hints from web)
 * Proxying to an external server (e2e TLS, SSH, ...)
 
 ### Not working yet:
@@ -58,7 +60,7 @@ details and a more complete list.
 
 You will probably need:
 
-   * An ESP32 module
+   * An ESP32 module or a Raspberry Pi Pico W
    * A proper USB cable
    * Credentials for your local WiFi
    * A [pagekite.net](https://pagekite.net/) account
@@ -85,7 +87,7 @@ only one; using `picocom` to manage the serial link, and
 `upagekite.esp32_install` to drive it.
 
 
-**1. Verify that Linux sees your ESP32 as a serial device**
+#### 1. Verify that Linux sees your ESP32 as a serial device
 
 Plug the ESP32 into your USB port, and then run `dmesg`:
 
@@ -101,7 +103,7 @@ In this example, the ESP32 is connected to `/dev/ttyUSB0`.
 If nothing shows up, you probably need another cable. Or another ESP32.
 
 
-**2. Make sure you can talk to MicroPython**
+#### 2. Make sure you can talk to MicroPython
 
 If you haven't already flashed your
 [ESP32 with MicroPython](https://docs.micropython.org/en/latest/esp32/tutorial/intro.html),
@@ -122,7 +124,7 @@ any other reliable way to connect to the ESP32-CAM. They are not needed
 with the DevKit-C boards.
     
 
-**3. Configure and upload code to the device**
+#### 3. Configure and upload code to the device
 
 If you know your WiFi details and PageKite credentials, you may want to
 set some enviroment variables first:
@@ -154,7 +156,7 @@ PageKite credentials and launches the app. But it can do other things
 too, see `pydoc3 upagekite.esp32_install` for details. 
 
 
-**4. Commence hacking!**
+#### 4. Commence hacking!
 
 At this point, you will hopefully have made contact with your ESP32 and
 launched a live webapp.
@@ -164,9 +166,28 @@ explore [the Tutorial](https://github.com/pagekite/upagekite-tutorial/`)
 for a more structured approach.
 
 
+### Running on a live Raspberry Pi Pico W
+
+The Pico W is so small, and so new, that it's hard to avoid building
+custom MicroPython firmware for it. MicroPython 1.19 as released does not
+include support for the board, but their Github repo does.
+
+Here are [instructions on how to build upagekite-enabled MicroPython
+for the Pico W](https://github.com/BjarniRunar/building-micropython/),
+and [there should be binaries here](https://github.com/BjarniRunar/micropython-firmwares).
+
+Once you have flashed the Pico W and it has rebooted, you should be able
+to deploy code to the chip like so:
+
+    $ python3 -m upagekite.esp32_install --nopk |picocom /dev/ttyACM0
+
+(Consult the more complete ESP32 instructions above for hints about
+environment variables and options.
+
+
 ## A Note About Resource Constraints
 
-Uploading Python code to flash and compiling it on the chip as described
+Uploading Python code to flash and compiling it on the ESP32 as described
 above, is quite inefficient use of precious RAM.
 
 Some features simply cannot work: for example, the sample webapp
