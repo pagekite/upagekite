@@ -256,6 +256,10 @@ def handle_big_request(handler, env, max_bytes=None, _async=False, csrf=True):
   else:
     parser_cls = ParseNull
 
+  if req_env.http_method in ('GET', 'HEAD', 'OPTIONS'):
+    needed_bytes = 0
+    csrf = False
+
   def check_csrf():
     if csrf and not req_env.get('_csrf_disabled'):
       cc = req_env.post_vars.get('upk_csrf', None)
