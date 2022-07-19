@@ -198,11 +198,13 @@ def bootstrap_1(settings, download=True):
         time.sleep(1)
         wlan.active(True)
         wlan.connect(settings['ssid'], settings['key'])
-        print('=== Connecting to WiFi: %s' % settings['ssid'])
+        print('=== Connecting to WiFi: %s' % (settings['ssid'],))
         for i in range(0, 60):
           if wlan.isconnected():
             break
           time.sleep(1)
+        ifc = wlan.ifconfig()
+        print('=== Connected with IP: %s' % (ifc[0]))
     except Exception as e:
       print('!!! Failed to bring up WiFi: %s' % e)
 
