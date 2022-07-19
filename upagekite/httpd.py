@@ -373,9 +373,11 @@ class HTTPD:
             body='', mimetype='text/html; charset=utf-8',
             code=200, msg='OK', ttl=None, eof=True, hdrs={},
             suppress_log=False):
-        rdata = self.http_response(code, msg, mimetype, ttl, hdrs)
+        rdata = bytes(
+          self.http_response(code, msg, mimetype, ttl, hdrs), 'utf-8')
         if body and method != 'HEAD':
-          rdata += body
+          rdata += (
+            bytes(body, 'utf-8') if isinstance(body, str) else bytes(body))
         conn.sync_reply(frame, rdata, eof=eof)
         if not suppress_log:
           sent = len(rdata) if eof else '-'
