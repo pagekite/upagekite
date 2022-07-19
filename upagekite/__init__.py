@@ -262,7 +262,11 @@ class uPageKiteConn:
   def sync_reply(self, frame, data=None, eof=True):
     uPK = self.pk.uPK
     if data:
-      uPK.sync_send(self.conn, uPK.fmt_data(frame, data))
+      chunk_size = min(2048, uPK.SEND_WINDOW_BYTES - 12)
+      for chunk in range(0, len(data), chunk_size):
+        uPK.sync_send(
+          self.conn,
+          uPK.fmt_data(frame, data[chunk:chunk+chunk_size]))
     if eof:
       uPK.sync_send(self.conn, uPK.fmt_eof(frame))
 
@@ -270,7 +274,11 @@ class uPageKiteConn:
     uPK = self.pk.uPK
     async with self.lock:
       if data:
-        await uPK.send(self.conn, uPK.fmt_data(frame, data))
+        chunk_size = min(2048, uPK.SEND_WINDOW_BYTES - 12)
+        for chunk in range(0, len(data), chunk_size):
+          await uPK.send(
+            self.conn,
+            uPK.fmt_data(frame, data[chunk:chunk+chunk_size]))
       if eof:
         await uPK.send(self.conn, uPK.fmt_eof(frame))
 
