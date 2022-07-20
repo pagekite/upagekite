@@ -28,7 +28,7 @@ from struct import unpack
 
 
 # This is also used by setup.py
-UPAGEKITE_VERSION = '0.3.0'
+UPAGEKITE_VERSION = '0.3.1'
 
 # This is a cache of DNS hints we have recived from the network.
 _DNS_HINTS = {}
