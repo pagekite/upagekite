@@ -188,8 +188,8 @@ class Kite:
     elif self.proto[:3] == 'ssh':
       self.proto = 'raw' + self.proto[3:]
 
-    self.proto = self.proto.lower()
-    self.name = name.lower()
+    self.proto = self.proto
+    self.name = name
     self.secret = secret
     self.challenge = ''
     self.handler = handler
@@ -570,7 +570,8 @@ class uPageKiteDefaults:
           '%s/%s/%s' % (global_secret, relay_addr, kite.secret)
         )[:cls.TOKEN_LENGTH]
       server_token = kite.challenge or ''
-      data = '%s:%s:%s:%s' % (kite.proto, kite.name, client_token, server_token)
+      data = '%s:%s:%s:%s' % (
+          kite.proto.lower(), kite.name.lower(), client_token, server_token)
       sign = cls.sign(kite.secret, data)
       reqs.append('X-PageKite: %s:%s\r\n' % (data, sign))
     return ''.join(reqs)
@@ -586,7 +587,7 @@ class uPageKiteDefaults:
         proto = parts[1].strip()
         kitename = parts[2]
         for kite in kites:
-          if kite.name == kitename and kite.proto == proto:
+          if kite.name.lower() == kitename and kite.proto.lower() == proto:
             kite.challenge = parts[4]  # FIXME: Not thread safe!
             needsign.append(kite)
       elif line.startswith('X-PageKite-OK:'):
@@ -657,10 +658,10 @@ class uPageKiteDefaults:
     errors = 0
     for kite in kites:
       try:
-        payload = '%s:%s' % (kite.name, relay_ip)
+        payload = '%s:%s' % (kite.name.lower(), relay_ip)
         l1, hdrs, t1, t2, body = await cls.http_get(
           proto, host, path_fmt % {
-            'domain': kite.name,
+            'domain': kite.name.lower(),
             'sign': cls.sign(kite.secret, payload, length=100),
             'ips': relay_ip})
         if not (body.startswith(b'good') or body.startswith(b'nochg')):
