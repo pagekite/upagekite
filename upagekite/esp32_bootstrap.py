@@ -191,13 +191,13 @@ def bootstrap_1(settings, download=True):
     try:
       import network
       import time
-      if settings.get('ssid') and settings.get('key'):
+      if settings.get('ssid'):
         network.WLAN(network.AP_IF).active(False)
         wlan = network.WLAN(network.STA_IF)
         wlan.active(False)
         time.sleep(1)
         wlan.active(True)
-        wlan.connect(settings['ssid'], settings['key'])
+        wlan.connect(settings['ssid'], settings.get('key', ''))
         print('=== Connecting to WiFi: %s' % (settings['ssid'],))
         for i in range(0, 60):
           if wlan.isconnected():
