@@ -265,7 +265,7 @@ def handle_big_request(handler, env, max_bytes=None, _async=False, csrf=True):
       cc = req_env.post_vars.get('upk_csrf', None)
       cc = cc['value'] if isinstance(cc, dict) else cc
       if not cc or cc not in CSRF_CODES:
-        env['send_http_response'](code=403, msg='Invalid CSRF')
+        env['send_http_response'](code=403, msg='Invalid CSRF', body='Invalid CSRF')
         return False
     return True
 
