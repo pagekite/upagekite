@@ -188,7 +188,8 @@ class Kite:
     elif self.proto[:3] == 'ssh':
       self.proto = 'raw' + self.proto[3:]
 
-    self.name = name
+    self.proto = self.proto.lower()
+    self.name = name.lower()
     self.secret = secret
     self.challenge = ''
     self.handler = handler
