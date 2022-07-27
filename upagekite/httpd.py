@@ -182,6 +182,12 @@ class HTTPD:
         if default:
             if hdr not in hdrs:
                 hdrs[hdr] = default
+    try:
+        code = int(code)
+    except ValueError as e:
+        if self.uPK.error:
+            self.uPK.error('[www] Invalid return code %s: %s' % (code, e))
+        code = 500
     return (
         'HTTP/%s %d %s\r\n'
         'Server: %s\r\n'

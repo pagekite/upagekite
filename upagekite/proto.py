@@ -52,7 +52,13 @@ try:
     from builtins import PermissionError
 except ImportError:
     class PermissionError(OSError):
-        pass
+        def __init__(self, *args, **kwargs):
+            if len(args) == 2:
+                kwargs['errno'], msg = args
+            else:
+                msg = args[0]
+            super().__init__(msg)
+            self.errno = kwargs.get('errno', 0)
 
 try:
     SELECT_POLL_IN = (select.POLLPRI | select.POLLIN)
