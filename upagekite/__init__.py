@@ -328,7 +328,8 @@ class uPageKiteConn:
             await self.handlers[frame.sid](frame)
           except Exception as e:
             print_exc(e)
-            print('Oops, sid handler: %s' % e)
+            if self.pk.uPK.debug:
+              self.pk.uPK.debug('Oops, sid handler: %s' % e)
             await self.reply(frame, eof=True)
             if frame.sid in self.handlers:
               del self.handlers[frame.sid]
@@ -344,7 +345,13 @@ class uPageKiteConn:
               await kite.handler(kite, self, frame)
               break
 
+        elif frame.sid and frame.skb and not frame.eof:
+          # Just ignore these, so as not to prematurely kill in-flight streams
+          pass
+
         elif frame.sid:
+          if self.pk.uPK.debug:
+            self.pk.uPK.debug('Fell through, closing tunnel')
           await self.reply(frame, eof=True)
 
         # FIXME: Detect and report quota values? Other things?

@@ -219,6 +219,7 @@ class Frame:
       self.payload = payload
 
   eof = property(lambda s: s.headers.get('EOF', ''))
+  skb = property(lambda s: s.headers.get('SKB'))
   sid = property(lambda s: s.headers.get('SID'))
   uid = property(lambda s: s.cid + s.headers.get('SID'))
   tls = property(lambda s: s.headers.get('RTLS'))
