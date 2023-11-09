@@ -437,6 +437,9 @@ class uPageKite:
     self.want_dns_update = [0]
     self.reconfig_flag = False
 
+  def get_conn_pool(self, conns):
+    return uPageKiteConnPool(conns, self)
+
   def reconfigure(self):
     """
     Call this method when changing .public or .keep_running,
@@ -526,7 +529,7 @@ class uPageKite:
 
     await fuzzy_sleep_ms()
     try:
-      pool = uPageKiteConnPool(conns, self)
+      pool = self.get_conn_pool(conns)
       while pool.conns and self.keep_running and time.time() < deadline:
         if wdt:
           wdt.feed()
