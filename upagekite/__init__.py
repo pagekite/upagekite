@@ -40,6 +40,8 @@ def _fileno(obj):
 
 
 class LocalHTTPKite(Kite):
+  MAX_READ = (2 if IS_MICROPYTHON else 64) * 1024
+
   def __init__(self, listen_on, name, secret, handler):
     Kite.__init__(self, name, secret, 'http', handler)
     self.listening_port = listen_on
@@ -123,7 +125,8 @@ class LocalHTTPKite(Kite):
           uPK.GC_COLLECT()
           if readable:
             sock.setblocking(False)
-            more = client.read(min(2048, nbytes if (nbytes > 0) else 2048))
+            more = client.read(
+              min(self.MAX_READ, nbytes if (nbytes > 0) else self.MAX_READ))
             await handler(Frame(uPK, payload=more, headers={
               'SID': sid,
               'EOF': '1WR' if (not more) else ''}))

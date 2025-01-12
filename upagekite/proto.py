@@ -179,11 +179,16 @@ class EofStream(IOError):
   pass
 
 
-async def fuzzy_sleep_ms(ms=0):
-  real_sleep_ms(1)
-  if ms > 1:
-    await sleep_ms(ms-1)
-  return max(ms, 1)
+if IS_MICROPYTHON:
+  async def fuzzy_sleep_ms(ms=0):
+    real_sleep_ms(1)
+    if ms > 1:
+      await sleep_ms(ms-1)
+    return max(ms, 1)
+else:
+  async def fuzzy_sleep_ms(ms=0):
+    await sleep_ms(max(ms, 0))
+    return max(ms, 1)
 
 
 class Kite:

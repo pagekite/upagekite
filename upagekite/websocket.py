@@ -126,7 +126,7 @@ class Websocket(object):
     conn.async_await_data(self.uPK, frame.sid, self.receive_data)
 
     async def welcome():
-      await fuzzy_sleep_ms(25)
+      await fuzzy_sleep_ms(5)
       await self.message_handler(None, None, wss, self, first=True)
     asyncio.get_event_loop().create_task(welcome())
 
@@ -260,8 +260,8 @@ class WebsocketStream(object):
             opcode, message, offset = None, b'', 0
         elif opc == OPCODES.CLOSE:
           raise EofStream()
-        else:
-          print('FIXME: handle control frame %s' % opc)
+        elif self.uPK.debug:
+          self.uPK.debug('[ws] FIXME: handle control frame %s' % opc)
     except (KeyError, IndexError):
       pass
 
@@ -286,6 +286,9 @@ class WebsocketStream(object):
       mask = self.ZERO_MASK
 
     end = base+offset+length
+    if end > len(self.buffer):
+      raise IndexError('Need more data')
+
     result = (
       (b0 & self.HEADER_FIN),
       (b0 & self.HEADER_OPC),
